@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">SettleHub</string>
+    <string name="title_activity_main">SettleHub</string>
+    <string name="package_name">com.settlehub.app</string>
+    <string name="custom_url_scheme">com.settlehub.app</string>
+</resources>

@@ -1,0 +1,50 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# Maven / Java
+target/
+**/target/
+backend/target/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# Node / Frontend
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Android / Gradle
+.gradle/
+**/.gradle/
+build/
+**/build/
+**/android/.gradle/
+**/android/build/
+**/android/app/build/
+**/android/local.properties
+**/android/.idea/
+*.apk
+*.aab
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# Environment
+.env
+.env.local
+.env.production.local
