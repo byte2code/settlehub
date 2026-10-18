@@ -8,6 +8,8 @@
 [![Capacitor](https://img.shields.io/badge/Capacitor-Android%20v6-1192e8.svg)](https://capacitorjs.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791.svg)](https://www.postgresql.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Download Android APK](https://img.shields.io/badge/Download%20APK-v1.0.0%20(4.36%20MB)-10b981?style=for-the-badge&logo=android&logoColor=white)](https://github.com/byte2code/settlehub/releases/download/v1.0.0/SettleHub.apk)
+[![GitHub Release](https://img.shields.io/badge/GitHub%20Release-v1.0.0-teal?style=for-the-badge&logo=github)](https://github.com/byte2code/settlehub/releases/tag/v1.0.0)
 
 > **SettleHub** is a cleanroom full-stack reimplementation of the core Splitwise expense-sharing platform, engineered for **zero floating-point rounding errors** and **optimal settlement graphs**. It is deployed on 100% free-tier cloud infrastructure (Render + Cloudflare Pages) and available as both an installable **PWA (iOS/Android)** and a native **Android APK**.
 
@@ -198,12 +200,21 @@ Given $N$ participants with net balances $B_i$ such that $\sum_{i=1}^N B_i = 0$:
 ## 📱 Mobile Apps (Android APK & iOS PWA)
 
 ### Android Standalone APK
-- **File:** `SettleHub.apk` (located in root directory, ~4.2 MB)
-- **Installation:**
-  1. Upload `SettleHub.apk` to your Google Drive.
-  2. Share the link with your trip members.
-  3. Download on Android $\rightarrow$ tap Install $\rightarrow$ allow *"Install unknown apps"* if prompted.
-  4. Tap the **Server** icon in the navbar $\rightarrow$ enter your deployed Render backend URL $\rightarrow$ tap **Save & Connect**.
+
+The native Android package is ready for direct installation on any Android device without requiring Google Play Store:
+
+| Option | Download Link | Notes |
+| :--- | :--- | :--- |
+| **Direct APK Download** | [📥 **Download SettleHub.apk (v1.0.0)**](https://github.com/byte2code/settlehub/releases/download/v1.0.0/SettleHub.apk) | Hosted on GitHub Releases CDN (~4.36 MB) |
+| **Repository File** | [📁 `SettleHub.apk`](./SettleHub.apk?raw=true) | Direct raw download from repository tree |
+| **GitHub Release** | [🏷️ **View Release v1.0.0**](https://github.com/byte2code/settlehub/releases/tag/v1.0.0) | Release notes, checksums, and assets |
+
+#### Installation Instructions:
+1. Download `SettleHub.apk` via the direct link above on your Android phone.
+2. Open the downloaded `.apk` file $\rightarrow$ tap **Install**.
+3. If prompted by Android, enable *"Install unknown apps"* for your browser or file manager.
+4. Launch **SettleHub** from your home screen.
+5. Tap the **Server** icon in the top navbar $\rightarrow$ enter your deployed Render backend URL (e.g. `https://your-backend.onrender.com/api/v1`) $\rightarrow$ tap **Save & Connect**. (Or leave as default for local LAN testing).
 
 ### iOS (iPhone & iPad) PWA
 Apple restricts sideloading standalone `.ipa` files without an active Apple Developer subscription. SettleHub is fully configured as a Progressive Web App:
