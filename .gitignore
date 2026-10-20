@@ -49,3 +49,4 @@ build/
 .env
 .env.local
 .env.production.local
+.neon

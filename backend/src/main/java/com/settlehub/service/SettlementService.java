@@ -18,15 +18,18 @@ public class SettlementService {
     private final GroupRepository groupRepository;
     private final UserRepository userRepository;
     private final ExpenseRepository expenseRepository;
+    private final WebSocketEventPublisher eventPublisher;
 
     public SettlementService(SettlementRepository settlementRepository,
                              GroupRepository groupRepository,
                              UserRepository userRepository,
-                             ExpenseRepository expenseRepository) {
+                             ExpenseRepository expenseRepository,
+                             WebSocketEventPublisher eventPublisher) {
         this.settlementRepository = settlementRepository;
         this.groupRepository = groupRepository;
         this.userRepository = userRepository;
         this.expenseRepository = expenseRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -80,8 +83,18 @@ public class SettlementService {
 
             group.setUpdatedAt(Instant.now());
             groupRepository.save(group);
+            eventPublisher.publishGroupEvent(group.getId(), "SETTLEMENT_RECORDED", SettlementDto.fromEntity(settlement));
         }
 
         return SettlementDto.fromEntity(settlement);
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.List<SettlementDto> getSettlementsForGroup(UUID groupId) {
+        Group group = groupRepository.findById(groupId)
+            .orElseThrow(() -> new IllegalArgumentException("Group not found: " + groupId));
+        return settlementRepository.findAllByGroupOrderByDateDesc(group).stream()
+            .map(SettlementDto::fromEntity)
+            .toList();
     }
 }

@@ -121,6 +121,7 @@ class ApiService {
     groupType?: string;
     simplifyByDefault?: boolean;
     currencyCode?: string;
+    budgetCents?: number | null;
     memberEmails?: string[];
   }): Promise<Group> {
     return this.request<Group>('/groups', {
@@ -129,7 +130,7 @@ class ApiService {
     });
   }
 
-  async updateGroup(id: string, data: { name?: string; simplifyByDefault?: boolean }): Promise<Group> {
+  async updateGroup(id: string, data: { name?: string; simplifyByDefault?: boolean; archived?: boolean; budgetCents?: number | null }): Promise<Group> {
     return this.request<Group>(`/groups/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -168,6 +169,8 @@ class ApiService {
       costCents: number;
       currencyCode?: string;
       date?: string;
+      category?: string;
+      receiptUrl?: string | null;
       creationMethod?: string;
       payers?: { userId: string; paidCents: number }[];
       splits: { userId: string; owedCents?: number; percentage?: number }[];
@@ -175,6 +178,26 @@ class ApiService {
   ): Promise<Expense> {
     return this.request<Expense>(`/groups/${groupId}/expenses`, {
       method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateExpense(
+    expenseId: string,
+    data: {
+      description: string;
+      costCents: number;
+      currencyCode?: string;
+      date?: string;
+      category?: string;
+      receiptUrl?: string | null;
+      creationMethod?: string;
+      payers?: { userId: string; paidCents: number }[];
+      splits: { userId: string; owedCents?: number; percentage?: number }[];
+    }
+  ): Promise<Expense> {
+    return this.request<Expense>(`/expenses/${expenseId}`, {
+      method: 'PUT',
       body: JSON.stringify(data),
     });
   }
@@ -206,6 +229,61 @@ class ApiService {
     return this.request<Settlement>('/settlements', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  }
+
+  async getGroupSettlements(groupId: string): Promise<Settlement[]> {
+    return this.request<Settlement[]>(`/settlements/groups/${groupId}`);
+  }
+
+  // --- SettleHub 2.0 Export Endpoints ---
+  async getWhatsAppSummary(groupId: string): Promise<{
+    groupId: string;
+    groupName: string;
+    currency: string;
+    totalSpendFormatted: string;
+    summaryText: string;
+    debtsCount: number;
+  }> {
+    return this.request(`/groups/${groupId}/export/whatsapp`);
+  }
+
+  async downloadExcelReport(groupId: string, groupName: string): Promise<void> {
+    const baseUrl = getApiBaseUrl();
+    const token = this.getToken();
+    const cleanBase = baseUrl.replace(/\/+$/, '');
+    const url = `${cleanBase}/groups/${groupId}/export/excel`;
+
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+
+    if (!res.ok) {
+      throw new Error(`Failed to generate Excel report (HTTP ${res.status})`);
+    }
+
+    const blob = await res.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const safeName = (groupName || 'SettleHub').replace(/[^a-zA-Z0-9_-]/g, '_');
+    link.href = downloadUrl;
+    link.download = `${safeName}_Expense_Report.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(downloadUrl);
+  }
+
+  async emailGroupReport(groupId: string): Promise<{
+    success: boolean;
+    message: string;
+    recipients: string[];
+  }> {
+    return this.request(`/groups/${groupId}/export/email`, {
+      method: 'POST',
     });
   }
 }

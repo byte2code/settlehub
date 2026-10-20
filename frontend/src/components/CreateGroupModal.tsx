@@ -15,6 +15,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onCl
   const [name, setName] = useState('');
   const [groupType, setGroupType] = useState('trip');
   const [currencyCode, setCurrencyCode] = useState(getStoredCurrency() || 'INR');
+  const [budgetStr, setBudgetStr] = useState('');
   const [simplifyByDefault, setSimplifyByDefault] = useState(true);
   const [emails, setEmails] = useState<string[]>(['']);
   const [loading, setLoading] = useState(false);
@@ -45,11 +46,15 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onCl
 
     try {
       const validEmails = emails.map((em) => em.trim().toLowerCase()).filter((em) => em.length > 0);
+      const budgetNum = parseFloat(budgetStr);
+      const budgetCents = !isNaN(budgetNum) && budgetNum > 0 ? Math.round(budgetNum * 100) : null;
+
       const group = await api.createGroup({
         name: name.trim(),
         groupType,
         currencyCode,
         simplifyByDefault,
+        budgetCents,
         memberEmails: validEmails,
       });
 
@@ -133,6 +138,30 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onCl
                 );
               })}
             </div>
+          </div>
+
+          {/* Target Trip Budget (Optional) */}
+          <div>
+            <label className="block text-xs font-medium text-slate-400 mb-1">
+              Target Trip Budget <span className="text-[10px] text-slate-500">(Optional)</span>
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-2 text-emerald-400 font-bold text-sm">
+                {SUPPORTED_CURRENCIES.find((c) => c.code === currencyCode)?.symbol || '₹'}
+              </span>
+              <input
+                type="number"
+                step="1"
+                min="0"
+                value={budgetStr}
+                onChange={(e) => setBudgetStr(e.target.value)}
+                placeholder="e.g. 50000"
+                className="w-full pl-8 pr-3 py-2 text-sm bg-slate-950 border border-slate-800 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 font-mono"
+              />
+            </div>
+            <p className="text-[10px] text-slate-500 mt-1">
+              Live budget pacing will show how much of your budget is used in real-time.
+            </p>
           </div>
 
           <div>

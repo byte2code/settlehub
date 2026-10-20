@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { api } from './services/api';
+import { api, getApiBaseUrl } from './services/api';
 import type { User } from './types';
 import { Navbar } from './components/Navbar';
 import { Dashboard } from './components/Dashboard';
 import { GroupDetail } from './components/GroupDetail';
 import { AuthModal } from './components/AuthModal';
 import { getStoredCurrency, setStoredCurrency, DEFAULT_CURRENCY } from './utils/currency';
-import { Layers, Sparkles, ShieldCheck, ArrowRight, Zap } from 'lucide-react';
+import { Layers, Sparkles, ShieldCheck, ArrowRight, Zap, Coffee, RefreshCw } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -16,6 +16,57 @@ export const App: React.FC = () => {
   const [activeCurrency, setActiveCurrency] = useState<string>(
     () => getStoredCurrency() || DEFAULT_CURRENCY
   );
+
+  // Cold Start detection for Render free-tier
+  const [isWakingUp, setIsWakingUp] = useState(false);
+  const [wakeUpSeconds, setWakeUpSeconds] = useState(0);
+
+  useEffect(() => {
+    let checkInterval: any = null;
+
+    const checkBackendHealth = async () => {
+      const baseUrl = getApiBaseUrl().replace(/\/api\/v1\/?$/, '');
+      const healthUrl = `${baseUrl}/health`;
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3500);
+        const res = await fetch(healthUrl, { signal: controller.signal }).catch(() => null);
+        clearTimeout(timeoutId);
+
+        if (res && res.ok) {
+          setIsWakingUp(false);
+          if (checkInterval) clearInterval(checkInterval);
+          return true;
+        }
+      } catch {
+        // Ignored
+      }
+      return false;
+    };
+
+    const runHealthCheck = async () => {
+      const isOk = await checkBackendHealth();
+      if (!isOk) {
+        setIsWakingUp(true);
+        // Start counting seconds and polling
+        checkInterval = setInterval(async () => {
+          setWakeUpSeconds(prev => prev + 3);
+          const ok = await checkBackendHealth();
+          if (ok) {
+            setIsWakingUp(false);
+            clearInterval(checkInterval);
+          }
+        }, 3000);
+      }
+    };
+
+    runHealthCheck();
+
+    return () => {
+      if (checkInterval) clearInterval(checkInterval);
+    };
+  }, []);
 
   useEffect(() => {
     const initAuth = async () => {
@@ -39,20 +90,25 @@ export const App: React.FC = () => {
     initAuth();
   }, []);
 
+  // Handle URL deep-link join: ?join=CODE
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const joinCode = params.get('join');
-    if (joinCode && user) {
-      api.joinGroup(joinCode)
-        .then((group) => {
-          setSelectedGroupId(group.id);
-          window.history.replaceState({}, document.title, window.location.pathname);
-        })
-        .catch((err) => {
-          console.warn('Auto-join group failed:', err);
-        });
-    } else if (joinCode && !user && !loading) {
-      setShowAuthModal(true);
+    if (joinCode) {
+      localStorage.setItem('settlehub_pending_join', joinCode.trim().toUpperCase());
+      if (user) {
+        api.joinGroup(joinCode)
+          .then((group) => {
+            setSelectedGroupId(group.id);
+            localStorage.removeItem('settlehub_pending_join');
+            window.history.replaceState({}, document.title, window.location.pathname);
+          })
+          .catch((err) => {
+            console.warn('Auto-join group failed:', err);
+          });
+      } else if (!loading) {
+        setShowAuthModal(true);
+      }
     }
   }, [user, loading]);
 
@@ -75,11 +131,24 @@ export const App: React.FC = () => {
     setSelectedGroupId(null);
   };
 
-  const handleAuthSuccess = (loggedUser: User) => {
+  const handleAuthSuccess = async (loggedUser: User) => {
     setUser(loggedUser);
     if (loggedUser.currencyCode) {
       setActiveCurrency(loggedUser.currencyCode);
       setStoredCurrency(loggedUser.currencyCode);
+    }
+
+    // Check for pending join code
+    const pendingCode = localStorage.getItem('settlehub_pending_join');
+    if (pendingCode) {
+      try {
+        const joined = await api.joinGroup(pendingCode);
+        setSelectedGroupId(joined.id);
+        localStorage.removeItem('settlehub_pending_join');
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } catch (e) {
+        console.warn('Pending join code failed:', e);
+      }
     }
   };
 
@@ -93,6 +162,17 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#090d16] text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-white">
+      {/* Cold Start Notice Banner (Render free tier standby) */}
+      {isWakingUp && (
+        <div className="bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-amber-500/20 border-b border-amber-500/30 px-4 py-2.5 text-xs text-amber-200 flex items-center justify-center gap-2.5 animate-pulse shrink-0">
+          <Coffee className="w-4 h-4 text-amber-400 shrink-0" />
+          <span>
+            <strong>Free Cloud Standby:</strong> SettleHub backend is waking up (~30-45s on first launch). Reconnecting automatically... ({wakeUpSeconds}s elapsed)
+          </span>
+          <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400 shrink-0 ml-1" />
+        </div>
+      )}
+
       <Navbar
         user={user}
         activeCurrency={activeCurrency}
@@ -119,19 +199,19 @@ export const App: React.FC = () => {
           )
         ) : (
           /* Landing Hero Screen for unauthenticated visitors */
-          <div className="max-w-5xl mx-auto px-4 py-20 text-center space-y-8 animate-fade-in">
+          <div className="max-w-5xl mx-auto px-4 py-16 sm:py-20 text-center space-y-8 animate-fade-in">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Full-Stack Cleanroom Splitwise Reimplementation</span>
+              <span>SettleHub 2.0 • Real-Time WebSockets • WhatsApp & Excel Exports</span>
             </div>
 
             <h1 className="text-4xl sm:text-6xl font-black text-white tracking-tight leading-tight max-w-3xl mx-auto">
-              Split expenses with <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400">zero rounding errors</span>.
+              Split trip expenses with <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400">zero rounding errors</span>.
             </h1>
 
             <p className="text-base sm:text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed">
               SettleHub features cent-precision integer arithmetic and the dual Max-Heap Min-Cash-Flow algorithm
-              to completely eliminate circular debts and simplify repayments down to $N-1$ transactions.
+              to eliminate circular debts, with 1-click WhatsApp summaries and full Excel exports.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
@@ -152,7 +232,7 @@ export const App: React.FC = () => {
                 </div>
                 <h3 className="text-sm font-bold text-white mb-1">Dual Max-Heap Solver</h3>
                 <p className="text-xs text-slate-400">
-                  Resolves circular debts in $O(N \log N)$ time, cutting multi-party transaction counts in half.
+                  Resolves circular debts in O(N log N) time, cutting multi-party transaction counts in half.
                 </p>
               </div>
 
@@ -160,9 +240,9 @@ export const App: React.FC = () => {
                 <div className="w-9 h-9 rounded-xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400 mb-3">
                   <ShieldCheck className="w-5 h-5" />
                 </div>
-                <h3 className="text-sm font-bold text-white mb-1">Cent-Precision Math</h3>
+                <h3 className="text-sm font-bold text-white mb-1">WhatsApp & Excel Reports</h3>
                 <p className="text-xs text-slate-400">
-                  Exact integer cent distribution (`divideFairly`) guarantees zero floating-point accumulation drift.
+                  1-tap WhatsApp debt summary sharing and Apache POI 3-sheet Excel workbook export.
                 </p>
               </div>
 
@@ -170,9 +250,9 @@ export const App: React.FC = () => {
                 <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 mb-3">
                   <Layers className="w-5 h-5" />
                 </div>
-                <h3 className="text-sm font-bold text-white mb-1">Free-Tier Ready</h3>
+                <h3 className="text-sm font-bold text-white mb-1">Live WebSockets</h3>
                 <p className="text-xs text-slate-400">
-                  Engineered for Render (512MB RAM Spring Boot 3) + Cloudflare Pages static edge deployment.
+                  Instant live sync between all group members using native Spring Boot STOMP WebSockets.
                 </p>
               </div>
             </div>
@@ -182,7 +262,7 @@ export const App: React.FC = () => {
 
       {/* Footer */}
       <footer className="border-t border-slate-900 py-6 text-center text-xs text-slate-500">
-        <p>SettleHub Expense Sharing Platform • Multi-Currency Support (Default: INR ₹)</p>
+        <p>SettleHub 2.0 • Permanent Neon Cloud Postgres • Real-Time WebSockets • Multi-Currency</p>
       </footer>
 
       <AuthModal

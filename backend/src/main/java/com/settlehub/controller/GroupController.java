@@ -58,7 +58,12 @@ public class GroupController {
     ) {
         String name = (String) body.get("name");
         Boolean simplify = (Boolean) body.get("simplifyByDefault");
-        GroupDto updated = groupService.updateGroupSettings(id, principal.getId(), name, simplify);
+        Boolean archived = (Boolean) body.get("archived");
+        Long budgetCents = null;
+        if (body.get("budgetCents") != null) {
+            budgetCents = ((Number) body.get("budgetCents")).longValue();
+        }
+        GroupDto updated = groupService.updateGroupSettings(id, principal.getId(), name, simplify, archived, budgetCents);
         return ResponseEntity.ok(updated);
     }
 

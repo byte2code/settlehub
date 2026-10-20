@@ -19,6 +19,10 @@ public record CreateExpenseRequest(
     String currencyCode,
     Instant date,
 
+    String category, // "FOOD", "TRANSPORT", "STAY", "ENTERTAINMENT", "SHOPPING", "OTHER"
+
+    String receiptUrl, // Optional base64 or link to receipt image
+
     String creationMethod, // "EQUAL", "EXACT", "PERCENT"
 
     List<PayerRequest> payers, // If null or empty, defaults to current user paying 100%
@@ -26,6 +30,30 @@ public record CreateExpenseRequest(
     @NotEmpty(message = "At least one participant split is required")
     List<SplitRequest> splits
 ) {
+    public CreateExpenseRequest(
+        String description,
+        Long costCents,
+        String currencyCode,
+        Instant date,
+        String creationMethod,
+        List<PayerRequest> payers,
+        List<SplitRequest> splits
+    ) {
+        this(description, costCents, currencyCode, date, "OTHER", null, creationMethod, payers, splits);
+    }
+
+    public CreateExpenseRequest(
+        String description,
+        Long costCents,
+        String currencyCode,
+        Instant date,
+        String category,
+        String creationMethod,
+        List<PayerRequest> payers,
+        List<SplitRequest> splits
+    ) {
+        this(description, costCents, currencyCode, date, category, null, creationMethod, payers, splits);
+    }
     public record PayerRequest(
         @NotNull UUID userId,
         @NotNull Long paidCents

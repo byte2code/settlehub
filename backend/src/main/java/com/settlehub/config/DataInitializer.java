@@ -13,27 +13,27 @@ public class DataInitializer {
     @Bean
     public CommandLineRunner initDefaultUsers(UserRepository userRepository, PasswordEncoder passwordEncoder) {
         return args -> {
-            if (userRepository.findByEmail("alice@settlehub.com").isEmpty()) {
-                User alice = new User(
-                    "alice@settlehub.com",
-                    passwordEncoder.encode("password123"),
-                    "Alice",
-                    "Demo",
-                    "INR"
-                );
-                userRepository.save(alice);
+            if (userRepository.count() > 0) {
+                return; // Real user database, don't inject demo accounts
             }
 
-            if (userRepository.findByEmail("bob@settlehub.com").isEmpty()) {
-                User bob = new User(
-                    "bob@settlehub.com",
-                    passwordEncoder.encode("password123"),
-                    "Bob",
-                    "Demo",
-                    "INR"
-                );
-                userRepository.save(bob);
-            }
+            User alice = new User(
+                "alice@settlehub.com",
+                passwordEncoder.encode("password123"),
+                "Alice",
+                "Demo",
+                "INR"
+            );
+            userRepository.save(alice);
+
+            User bob = new User(
+                "bob@settlehub.com",
+                passwordEncoder.encode("password123"),
+                "Bob",
+                "Demo",
+                "INR"
+            );
+            userRepository.save(bob);
         };
     }
 }

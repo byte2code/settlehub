@@ -9,9 +9,14 @@ public record CreateGroupRequest(
     String groupType,
     Boolean simplifyByDefault,
     String currencyCode,
+    Long budgetCents,
     List<String> memberEmails
 ) {
+    public CreateGroupRequest(String name, String groupType, Boolean simplifyByDefault, String currencyCode, List<String> memberEmails) {
+        this(name, groupType, simplifyByDefault, currencyCode, null, memberEmails);
+    }
+
     public CreateGroupRequest(String name, String groupType, Boolean simplifyByDefault, List<String> memberEmails) {
-        this(name, groupType, simplifyByDefault, "INR", memberEmails);
+        this(name, groupType, simplifyByDefault, "INR", null, memberEmails);
     }
 }

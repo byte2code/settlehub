@@ -44,6 +44,9 @@ export interface Group {
   simplifyByDefault: boolean;
   currencyCode: string;
   inviteCode?: string;
+  archived?: boolean;
+  budgetCents?: number | null;
+  budgetFormatted?: string | null;
   createdAt: string;
   updatedAt: string;
   members: GroupMember[];
@@ -75,6 +78,8 @@ export interface Expense {
   date: string;
   creationMethod: 'EQUAL' | 'EXACT' | 'PERCENT' | 'PAYMENT';
   isPayment: boolean;
+  category?: string;
+  receiptUrl?: string | null;
   createdBy: User;
   payers: ExpensePayer[];
   splits: ExpenseSplit[];

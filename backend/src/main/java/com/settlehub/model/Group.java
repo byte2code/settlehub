@@ -29,6 +29,12 @@ public class Group {
     @Column(unique = true, length = 16)
     private String inviteCode;
 
+    @Column(name = "archived")
+    private boolean archived = false;
+
+    @Column(name = "budget_cents")
+    private Long budgetCents;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -102,6 +108,12 @@ public class Group {
 
     public String getInviteCode() { return inviteCode; }
     public void setInviteCode(String inviteCode) { this.inviteCode = inviteCode; }
+
+    public boolean isArchived() { return archived; }
+    public void setArchived(boolean archived) { this.archived = archived; }
+
+    public Long getBudgetCents() { return budgetCents; }
+    public void setBudgetCents(Long budgetCents) { this.budgetCents = budgetCents; }
 
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }

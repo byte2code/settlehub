@@ -16,6 +16,7 @@ import {
   MoreHorizontal,
   RefreshCw,
   KeyRound,
+  Archive,
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -26,6 +27,7 @@ interface DashboardProps {
 
 export const Dashboard: React.FC<DashboardProps> = ({ currentUser, activeCurrency, onSelectGroup }) => {
   const [groups, setGroups] = useState<Group[]>([]);
+  const [filterMode, setFilterMode] = useState<'active' | 'archived'>('active');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
@@ -128,9 +130,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, activeCurrenc
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-bold text-white tracking-tight">Your Expense Groups</h2>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
-              {groups.length}
-            </span>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -159,6 +158,34 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, activeCurrenc
           </div>
         </div>
 
+        {/* Active vs Archived Tabs */}
+        <div className="flex items-center gap-1.5 p-1 bg-slate-900 rounded-xl border border-slate-800 w-fit">
+          <button
+            type="button"
+            onClick={() => setFilterMode('active')}
+            className={`flex items-center gap-1.5 py-1.5 px-3 text-xs font-semibold rounded-lg transition-all ${
+              filterMode === 'active'
+                ? 'bg-slate-800 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Active Trips ({groups.filter(g => !g.archived).length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilterMode('archived')}
+            className={`flex items-center gap-1.5 py-1.5 px-3 text-xs font-semibold rounded-lg transition-all ${
+              filterMode === 'archived'
+                ? 'bg-slate-800 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Archive className="w-3.5 h-3.5 text-amber-400" />
+            <span>Archived ({groups.filter(g => !!g.archived).length})</span>
+          </button>
+        </div>
+
         {error && (
           <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs">
             {error}
@@ -166,88 +193,108 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, activeCurrenc
         )}
 
         {/* Groups Grid */}
-        {groups.length === 0 && !loading ? (
+        {groups.filter(g => filterMode === 'active' ? !g.archived : !!g.archived).length === 0 && !loading ? (
           <div className="text-center py-16 px-4 rounded-3xl border border-dashed border-slate-800 space-y-4">
             <div className="w-12 h-12 rounded-2xl bg-slate-800/80 flex items-center justify-center text-slate-500 mx-auto">
-              <Users className="w-6 h-6" />
+              {filterMode === 'active' ? <Users className="w-6 h-6" /> : <Archive className="w-6 h-6" />}
             </div>
             <div>
-              <h3 className="text-base font-bold text-white">No Expense Groups Yet</h3>
+              <h3 className="text-base font-bold text-white">
+                {filterMode === 'active' ? 'No Active Expense Groups' : 'No Archived Groups'}
+              </h3>
               <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">
-                Create your first group to start splitting bills, groceries, and travel expenses without math headache.
+                {filterMode === 'active'
+                  ? 'Create your first group to start splitting bills, groceries, and travel expenses without math headache.'
+                  : 'Completed trips and closed groups you archive will appear safely here for your records.'}
               </p>
             </div>
-            <button
-              onClick={() => setShowCreateGroup(true)}
-              className="px-4 py-2 text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-400 rounded-xl transition-all shadow-md shadow-emerald-500/20"
-            >
-              Create First Group
-            </button>
+            {filterMode === 'active' && (
+              <button
+                onClick={() => setShowCreateGroup(true)}
+                className="px-4 py-2 text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-400 rounded-xl transition-all shadow-md shadow-emerald-500/20"
+              >
+                Create First Group
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {groups.map((group) => {
-              const Icon = getCategoryIcon(group.groupType);
-              const isOwed = group.userNetBalanceCents > 0;
-              const isDebt = group.userNetBalanceCents < 0;
+            {groups
+              .filter(g => filterMode === 'active' ? !g.archived : !!g.archived)
+              .map((group) => {
+                const Icon = getCategoryIcon(group.groupType);
+                const isOwed = group.userNetBalanceCents > 0;
+                const isDebt = group.userNetBalanceCents < 0;
 
-              return (
-                <div
-                  key={group.id}
-                  onClick={() => onSelectGroup(group.id)}
-                  className="group p-5 rounded-2xl glass-panel hover:border-emerald-500/40 transition-all cursor-pointer flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="w-9 h-9 rounded-xl bg-slate-800 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500/10 transition-colors">
-                        <Icon className="w-4 h-4" />
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                          {group.currencyCode || 'INR'}
-                        </span>
-                        <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
-                          {group.groupType}
-                        </span>
-                      </div>
-                    </div>
-
-                    <h3 className="text-lg font-bold text-white group-hover:text-emerald-400 transition-colors truncate">
-                      {group.name}
-                    </h3>
-
-                    <div className="flex items-center gap-2 text-xs text-slate-400 mt-1">
-                      <Users className="w-3.5 h-3.5 text-slate-500" />
-                      <span>{group.members.length} members</span>
-                      {group.simplifyByDefault && (
-                        <span className="text-[10px] font-medium text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
-                          Simplified
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="mt-6 pt-3 border-t border-slate-800/80 flex items-center justify-between">
+                return (
+                  <div
+                    key={group.id}
+                    onClick={() => onSelectGroup(group.id)}
+                    className="group p-5 rounded-2xl glass-panel hover:border-emerald-500/40 transition-all cursor-pointer flex flex-col justify-between"
+                  >
                     <div>
-                      <span className="text-[10px] uppercase font-semibold text-slate-500 block">
-                        Your Balance
-                      </span>
-                      <span
-                        className={`text-sm font-bold font-mono ${
-                          isOwed ? 'text-emerald-400' : isDebt ? 'text-rose-400' : 'text-slate-400'
-                        }`}
-                      >
-                        {isOwed ? `+${group.userNetBalanceFormatted}` : group.userNetBalanceFormatted}
-                      </span>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="w-9 h-9 rounded-xl bg-slate-800 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500/10 transition-colors">
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          {group.archived && (
+                            <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                              Archived
+                            </span>
+                          )}
+                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            {group.currencyCode || 'INR'}
+                          </span>
+                          <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                            {group.groupType}
+                          </span>
+                        </div>
+                      </div>
+
+                      <h3 className="text-lg font-bold text-white group-hover:text-emerald-400 transition-colors truncate">
+                        {group.name}
+                      </h3>
+
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 mt-1">
+                        <span className="flex items-center gap-1">
+                          <Users className="w-3.5 h-3.5 text-slate-500" />
+                          <span>{group.members.length} members</span>
+                        </span>
+                        {group.simplifyByDefault && (
+                          <span className="text-[10px] font-medium text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                            Simplified
+                          </span>
+                        )}
+                        {group.budgetFormatted && (
+                          <span className="text-[10px] font-medium text-teal-300 bg-teal-500/10 border border-teal-500/20 px-1.5 py-0.5 rounded">
+                            🎯 Budget: {group.budgetFormatted}
+                          </span>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="w-8 h-8 rounded-lg bg-slate-800/50 flex items-center justify-center text-slate-400 group-hover:text-white group-hover:bg-emerald-500 transition-all">
-                      <ArrowRight className="w-4 h-4" />
+                    <div className="mt-6 pt-3 border-t border-slate-800/80 flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] uppercase font-semibold text-slate-500 block">
+                          Your Balance
+                        </span>
+                        <span
+                          className={`text-sm font-bold font-mono ${
+                            isOwed ? 'text-emerald-400' : isDebt ? 'text-rose-400' : 'text-slate-400'
+                          }`}
+                        >
+                          {isOwed ? `+${group.userNetBalanceFormatted}` : group.userNetBalanceFormatted}
+                        </span>
+                      </div>
+
+                      <div className="w-8 h-8 rounded-lg bg-slate-800/50 flex items-center justify-center text-slate-400 group-hover:text-white group-hover:bg-emerald-500 transition-all">
+                        <ArrowRight className="w-4 h-4" />
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
           </div>
         )}
       </div>

@@ -44,6 +44,16 @@ public class ExpenseController {
         return ResponseEntity.ok(expenses);
     }
 
+    @PutMapping("/expenses/{expenseId}")
+    public ResponseEntity<ExpenseDto> updateExpense(
+        @PathVariable("expenseId") UUID expenseId,
+        @AuthenticationPrincipal UserPrincipal principal,
+        @Valid @RequestBody CreateExpenseRequest request
+    ) {
+        ExpenseDto updated = expenseService.updateExpense(expenseId, principal.getId(), request);
+        return ResponseEntity.ok(updated);
+    }
+
     @DeleteMapping("/expenses/{expenseId}")
     public ResponseEntity<Map<String, Boolean>> deleteExpense(
         @PathVariable("expenseId") UUID expenseId,

@@ -40,6 +40,12 @@ public class Expense {
     @Column(nullable = false)
     private boolean isPayment = false;
 
+    @Column(name = "category")
+    private String category = "OTHER"; // "FOOD", "TRANSPORT", "STAY", "ENTERTAINMENT", "SHOPPING", "OTHER"
+
+    @Column(name = "receipt_url", columnDefinition = "TEXT")
+    private String receiptUrl;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by_id")
     private User createdBy;
@@ -102,6 +108,12 @@ public class Expense {
 
     public boolean isPayment() { return isPayment; }
     public void setPayment(boolean payment) { isPayment = payment; }
+
+    public String getCategory() { return category != null ? category : "OTHER"; }
+    public void setCategory(String category) { this.category = category != null ? category.trim().toUpperCase() : "OTHER"; }
+
+    public String getReceiptUrl() { return receiptUrl; }
+    public void setReceiptUrl(String receiptUrl) { this.receiptUrl = receiptUrl; }
 
     public User getCreatedBy() { return createdBy; }
     public void setCreatedBy(User createdBy) { this.createdBy = createdBy; }

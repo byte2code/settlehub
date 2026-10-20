@@ -33,4 +33,11 @@ public class SettlementController {
         SettlementDto settlement = settlementService.recordSettlement(principal.getId(), request);
         return ResponseEntity.status(HttpStatus.CREATED).body(settlement);
     }
+
+    @org.springframework.web.bind.annotation.GetMapping("/groups/{groupId}")
+    public ResponseEntity<java.util.List<SettlementDto>> getGroupSettlements(
+        @org.springframework.web.bind.annotation.PathVariable("groupId") java.util.UUID groupId
+    ) {
+        return ResponseEntity.ok(settlementService.getSettlementsForGroup(groupId));
+    }
 }

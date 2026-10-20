@@ -18,7 +18,7 @@ public record SettlementDto(
     Instant createdAt
 ) {
     public static SettlementDto fromEntity(Settlement s) {
-        String formatted = String.format("$%.2f", s.getAmountCents() / 100.0);
+        String formatted = com.settlehub.util.CurrencyUtil.formatCents(s.getAmountCents(), s.getCurrencyCode());
         return new SettlementDto(
             s.getId(),
             s.getGroup() != null ? s.getGroup().getId() : null,

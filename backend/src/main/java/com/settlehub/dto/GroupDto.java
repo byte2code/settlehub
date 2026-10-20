@@ -13,6 +13,9 @@ public record GroupDto(
     boolean simplifyByDefault,
     String currencyCode,
     String inviteCode,
+    boolean archived,
+    Long budgetCents,
+    String budgetFormatted,
     Instant createdAt,
     Instant updatedAt,
     List<GroupMemberDto> members,
@@ -23,6 +26,7 @@ public record GroupDto(
         long bal = userNetBalanceCents != null ? userNetBalanceCents : 0L;
         String currency = group.getCurrencyCode() != null ? group.getCurrencyCode() : CurrencyUtil.DEFAULT_CURRENCY;
         String formatted = CurrencyUtil.formatCents(bal, currency);
+        String formattedBudget = group.getBudgetCents() != null ? CurrencyUtil.formatCents(group.getBudgetCents(), currency) : null;
 
         return new GroupDto(
             group.getId(),
@@ -31,6 +35,9 @@ public record GroupDto(
             group.isSimplifyByDefault(),
             currency,
             group.getInviteCode(),
+            group.isArchived(),
+            group.getBudgetCents(),
+            formattedBudget,
             group.getCreatedAt(),
             group.getUpdatedAt(),
             members,

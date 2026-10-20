@@ -43,6 +43,9 @@ public class GroupService {
             ? request.currencyCode().trim().toUpperCase()
             : (creator.getCurrencyCode() != null ? creator.getCurrencyCode() : CurrencyUtil.DEFAULT_CURRENCY);
         Group group = new Group(request.name().trim(), request.groupType(), simplify, currency);
+        if (request.budgetCents() != null && request.budgetCents() > 0) {
+            group.setBudgetCents(request.budgetCents());
+        }
         group = groupRepository.save(group);
 
         // Creator is added as ADMIN
@@ -135,7 +138,7 @@ public class GroupService {
     }
 
     @Transactional
-    public GroupDto updateGroupSettings(UUID groupId, UUID currentUserId, String name, Boolean simplifyByDefault) {
+    public GroupDto updateGroupSettings(UUID groupId, UUID currentUserId, String name, Boolean simplifyByDefault, Boolean archived, Long budgetCents) {
         Group group = groupRepository.findById(groupId)
             .orElseThrow(() -> new IllegalArgumentException("Group not found"));
 
@@ -145,9 +148,20 @@ public class GroupService {
         if (simplifyByDefault != null) {
             group.setSimplifyByDefault(simplifyByDefault);
         }
+        if (archived != null) {
+            group.setArchived(archived);
+        }
+        if (budgetCents != null) {
+            group.setBudgetCents(budgetCents >= 0 ? budgetCents : null);
+        }
         group = groupRepository.save(group);
 
         return getGroupDetails(group.getId(), currentUserId);
+    }
+
+    @Transactional
+    public GroupDto updateGroupSettings(UUID groupId, UUID currentUserId, String name, Boolean simplifyByDefault) {
+        return updateGroupSettings(groupId, currentUserId, name, simplifyByDefault, null, null);
     }
 
     @Transactional
