@@ -49,3 +49,4 @@ build/
 .env.local
 .env.production.local
 .neon
+!**/gradle/wrapper/gradle-wrapper.jar
