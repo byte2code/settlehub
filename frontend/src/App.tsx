@@ -15,7 +15,7 @@ const AuthModal = lazy(() => import('./components/modals/AuthModal'));
 
 export default function App() {
   const { user, loading } = useAuth();
-  const [auth, setAuth] = useState<{ context?: string } | null>(null);
+  const [auth, setAuth] = useState<{ context?: string; signUp?: boolean } | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
   useNativeBackButton();
@@ -26,7 +26,7 @@ export default function App() {
     if (legacy) navigate(`/join/${encodeURIComponent(legacy.trim().toUpperCase())}`, { replace: true });
   }, [location.search, navigate]);
 
-  const openAuth = (context?: string) => setAuth({ context });
+  const openAuth = (context?: string, signUp = false) => setAuth({ context, signUp });
 
   return (
     <div className="flex min-h-screen flex-col bg-app text-fg">
@@ -38,7 +38,7 @@ export default function App() {
         ) : (
           <Suspense fallback={<PageSpinner />}>
             <Routes>
-              <Route path="/" element={user ? <Dashboard /> : <Landing onGetStarted={() => openAuth()} />} />
+              <Route path="/" element={user ? <Dashboard /> : <Landing onGetStarted={() => openAuth(undefined, true)} />} />
               <Route path="/groups/:groupId" element={user ? <GroupPage /> : <Navigate to="/" replace />} />
               <Route path="/join/:code" element={<JoinPage onSignIn={openAuth} />} />
               <Route path="*" element={<Navigate to="/" replace />} />
@@ -49,7 +49,7 @@ export default function App() {
       <footer className="border-t border-line py-6 text-center text-xs text-subtle">
         SettleHub 3.0 · open source · runs on free infrastructure
       </footer>
-      <Suspense fallback={null}>{auth && !user && <AuthModal open context={auth.context} onClose={() => setAuth(null)} />}</Suspense>
+      <Suspense fallback={null}>{auth && !user && <AuthModal open context={auth.context} initialMode={auth.signUp ? 'register' : 'login'} onClose={() => setAuth(null)} />}</Suspense>
       <UpdatePrompt />
     </div>
   );

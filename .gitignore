@@ -35,7 +35,6 @@ build/
 **/android/local.properties
 **/android/.idea/
 *.apk
-!SettleHub.apk
 *.aab
 
 # IDE

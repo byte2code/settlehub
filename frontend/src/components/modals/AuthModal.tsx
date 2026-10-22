@@ -12,11 +12,12 @@ interface AuthModalProps {
   onClose: () => void;
   /** Shown above the form, e.g. when arriving from an invite link */
   context?: string;
+  initialMode?: 'login' | 'register';
 }
 
-export default function AuthModal({ open, onClose, context }: AuthModalProps) {
+export default function AuthModal({ open, onClose, context, initialMode = 'login' }: AuthModalProps) {
   const { signIn } = useAuth();
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<'login' | 'register'>(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');

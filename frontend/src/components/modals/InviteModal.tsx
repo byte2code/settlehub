@@ -21,7 +21,7 @@ export default function InviteModal({ open, onClose, group }: { open: boolean; o
 
   const copy = async (what: 'code' | 'link') => {
     try {
-      await navigator.clipboard.writeText(what === 'code' ? code : link);
+      await navigator.clipboard.writeText(what === 'code' || !link ? code : link);
       setCopied(what);
       setTimeout(() => setCopied(null), 2000);
     } catch {
@@ -33,12 +33,12 @@ export default function InviteModal({ open, onClose, group }: { open: boolean; o
     const text = `Join "${group.name}" on SettleHub to split expenses. Code: ${code}`;
     if (navigator.share) {
       try {
-        await navigator.share({ title: `Join ${group.name}`, text, url: link });
+        await navigator.share({ title: `Join ${group.name}`, text, url: link ?? undefined });
       } catch {
         // cancelled
       }
     } else {
-      window.open(`https://wa.me/?text=${encodeURIComponent(`${text}\n${link}`)}`, '_blank', 'noopener');
+      window.open(`https://wa.me/?text=${encodeURIComponent(link ? `${text}\n${link}` : text)}`, '_blank', 'noopener');
     }
   };
 
@@ -89,12 +89,16 @@ export default function InviteModal({ open, onClose, group }: { open: boolean; o
         </div>
 
         <div className="space-y-2">
-          <span className="text-xs font-medium text-muted">Invite link</span>
+          <span className="text-xs font-medium text-muted">{link ? 'Invite link' : 'Share the code'}</span>
           <div className="flex gap-2">
-            <div className="input truncate font-mono text-xs">{link}</div>
-            <button className="btn-secondary shrink-0 px-2.5" onClick={() => copy('link')} aria-label="Copy link">
-              {copied === 'link' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-            </button>
+            {link && (
+              <>
+                <div className="input truncate font-mono text-xs">{link}</div>
+                <button className="btn-secondary shrink-0 px-2.5" onClick={() => copy('link')} aria-label="Copy link">
+                  {copied === 'link' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                </button>
+              </>
+            )}
             <button className="btn-primary shrink-0" onClick={share}>
               <Share2 className="h-3.5 w-3.5" /> Share
             </button>

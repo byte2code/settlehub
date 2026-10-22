@@ -4,6 +4,12 @@
 > Every item below was chosen to stay inside free tiers (Render Free, Neon Free,
 > Cloudflare Pages Free, GitHub Actions on a public repo) and adds no paid SaaS.
 
+> **Status (22 Oct 2026):** every item in phases A–E is implemented. Still unverified:
+> the Docker image has not been built (its CDS steps were run with a local JVM instead),
+> the GitHub workflows have not run on GitHub yet, and the APK has not been tested on a
+> device.
+> See [`HANDOFF_3.0.md`](HANDOFF_3.0.md).
+
 ---
 
 ## 1. Audit of 2.0 — what was found

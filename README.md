@@ -1,379 +1,296 @@
-# 💸 SettleHub 2.0 — Full-Stack Real-Time Expense Sharing & Debt Minimization Platform
+# 💸 SettleHub 3.0 — Real-Time Group Expense Sharing
 
-[![Java](https://img.shields.io/badge/Java-23%20%7C%2021%20LTS-orange.svg)](https://www.oracle.com/java/)
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.4-brightgreen.svg)](https://spring.io/projects/spring-boot)
+[![CI](https://github.com/byte2code/settlehub/actions/workflows/ci.yml/badge.svg)](https://github.com/byte2code/settlehub/actions/workflows/ci.yml)
+[![Java](https://img.shields.io/badge/Java-21%20LTS-orange.svg)](https://adoptium.net/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1-brightgreen.svg)](https://spring.io/projects/spring-boot)
 [![React](https://img.shields.io/badge/React-19-blue.svg)](https://react.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg)](https://www.typescriptlang.org/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-v4-38bdf8.svg)](https://tailwindcss.com/)
 [![Capacitor](https://img.shields.io/badge/Capacitor-Android%20v8-1192e8.svg)](https://capacitorjs.com/)
 [![PostgreSQL](https://img.shields.io/badge/Neon%20PostgreSQL-Serverless-00e599.svg)](https://neon.tech/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Download Android APK](https://img.shields.io/badge/Download%20APK-v2.0.0%20(4.20%20MB)-10b981?style=for-the-badge&logo=android&logoColor=white)](https://github.com/byte2code/settlehub/releases/download/v2.0.0/SettleHub.apk)
-[![GitHub Release](https://img.shields.io/badge/GitHub%20Release-v2.0.0-teal?style=for-the-badge&logo=github)](https://github.com/byte2code/settlehub/releases/tag/v2.0.0)
+[![Download Android APK](https://img.shields.io/badge/Download-Android%20APK-10b981?style=for-the-badge&logo=android&logoColor=white)](https://github.com/byte2code/settlehub/releases/latest/download/SettleHub.apk)
 
-> **SettleHub 2.0** is an enterprise-grade, cleanroom full-stack reimplementation of the core Splitwise expense-sharing platform, engineered for **zero floating-point rounding errors**, **real-time WebSocket collaboration**, and **optimal settlement graphs**. It is deployed on 100% free-tier cloud infrastructure (Neon Serverless PostgreSQL + Render / Cloudflare Pages) and available as both an installable **PWA (iOS/Android)** and a native **Android APK**.
-
----
-
-## 📑 Table of Contents
-
-- [🌟 What's New in SettleHub 2.0](#-whats-new-in-settlehub-20)
-- [Core Engineering Highlights](#-core-engineering-highlights)
-- [Architecture & Tech Stack](#-architecture--tech-stack)
-- [Project Directory Structure](#-project-directory-structure)
-- [End-to-End System Flow](#-end-to-end-system-flow)
-- [Mathematical Foundation](#-mathematical-foundation)
-  - [1. Cent-Precision Fair Division](#1-cent-precision-fair-division-dividefairly)
-  - [2. Dual Max-Heap Min-Cash-Flow Solver](#2-dual-max-heap-min-cash-flow-solver)
-- [📱 Mobile Apps (Android APK & iOS PWA)](#-mobile-apps-android-apk--ios-pwa)
-- [🚀 100% Free Cloud Deployment Guide](#-100-free-cloud-deployment-guide)
-  - [Part A: Backend & Neon PostgreSQL on Render](#part-a-backend--neon-postgresql-on-render)
-  - [Part B: Frontend on Cloudflare Pages](#part-b-frontend-on-cloudflare-pages)
-- [📡 API Reference](#-api-reference)
-- [💻 Local Development Guide](#-local-development-guide)
-- [🛡️ Security & Production Hardening](#️-security--production-hardening)
+> **SettleHub** splits group expenses (trips, flats, dinners) exactly to the paisa, keeps everyone in sync live, and settles debts in the fewest payments. It runs entirely on free tiers (**$0/month**: Render + Neon + Cloudflare Pages + GitHub Actions) and ships as a web app, an installable PWA and an Android APK.
 
 ---
 
-## 🌟 What's New in SettleHub 2.0
+## 📑 Contents
 
-| Feature | Description | Architecture / Free-Tier Implementation |
-| :--- | :--- | :--- |
-| **⚡ Real-Time WebSockets** | Instant multi-user sync for expenses, edits, and settlements. | Embedded Spring STOMP message broker at `/topic/groups/{groupId}` + `@stomp/stompjs` with auto-reconnect. 0 external SaaS cost. |
-| **📲 WhatsApp Summary** | One-tap formatted WhatsApp report with direct `wa.me` deep-links. | Server-side markdown generator with client-side fallback. Displays total spend, per-member balances, and minimized repayments. |
-| **📊 Microsoft Excel Export** | Download native `.xlsx` workbooks for group audit. | Apache POI (`poi-ooxml`) generates multi-sheet workbooks (Overview, Balances, Settlements, Transactions) in-memory. |
-| **📸 Receipt Photo Uploads** | Attach bills & receipts directly to expenses with lightbox preview. | Client-side HTML5 Canvas compression downscaling to ~50KB JPEG data URLs, stored in PostgreSQL `receipt_url` (`TEXT`). $0 S3 bucket fees. |
-| **🤖 AI / Smart Quick Entry** | Type natural language like *"Dinner 1500 paid by Alice"* to auto-fill. | Instant offline NLP regex/keyword parser directly inside the frontend modal with 0ms latency and 0 API token cost. |
-| **🎯 Trip Budget Pacing** | Set group target budgets with real-time visual progress pacing. | `budget_cents` field in PostgreSQL with responsive progress meters (Emerald → Amber → Rose if over budget). |
-| **🗃️ Trip Archival Lifecycle** | Separate active trips from completed vacations. | `archived` toggle with Active vs. Archived dashboard tabs and 1-click restore. |
-| **🐘 Neon Serverless Postgres** | Robust cloud database branching and connection pooling. | HikariCP pool tuned for serverless scale-to-zero, SSL auto-negotiation, and 30-day mobile sessions. |
-
----
-
-## ⚡ Core Engineering Highlights
-
-- **Cent-Precision Integer Arithmetic:** All transactions, shares, and balances are stored and calculated strictly as 64-bit integer cents (`costCents`, `paidCents`, `owedCents`). Floating-point accumulation drift is mathematically impossible.
-- **Dual Max-Heap Debt Minimization:** Implements the $O(N \log N)$ Min-Cash-Flow algorithm, simplifying complex multi-party circular debts into at most $N-1$ linear transactions.
-- **Real-Time Push Architecture:** Live WebSocket connection eliminates manual page refreshing when multiple trip members enter expenses simultaneously.
-- **Dynamic PaaS Database Auto-Healing:** Custom `DatabaseConfiguration` automatically parses standard `DATABASE_URL` strings (`postgres://...`) provided by cloud providers (Neon, Render, Railway) and injects secure JDBC credentials with `sslmode=require`.
-- **Low-Memory Free-Tier Optimization:** Multi-stage Docker container tuned with `-XX:MaxRAMPercentage=75.0` to run safely within Render’s free 512MB RAM limit without OOM kills.
-- **Mobile-First Responsive Layout:** Engineered with `viewport-fit=cover`, safe area insets (`env(safe-area-inset-top)`), and zero horizontal scrolling on mobile viewports.
-- **In-App Server Configurator:** Built-in modal allows the Android APK to point to any deployed backend without needing recompilation.
+- [What's new in 3.0](#-whats-new-in-30)
+- [Features](#-features)
+- [Architecture](#️-architecture)
+- [Maths](#-maths)
+- [Mobile apps](#-mobile-apps)
+- [Free deployment ($0/month)](#-free-deployment-0month)
+- [Configuration](#️-configuration)
+- [Upgrading from 2.0](#️-upgrading-from-20)
+- [Local development](#-local-development)
+- [API reference](#-api-reference)
+- [Security](#️-security)
 
 ---
 
-## 🏗️ Architecture & Tech Stack
+## 🆕 What's new in 3.0
+
+The full audit and plan are in [`docs/settlehub_3.0_plan.md`](docs/settlehub_3.0_plan.md).
+
+**Security fixes (upgrade recommended)**
+- In 2.0 any logged-in user could read or change **any** group by its id. Every endpoint and live-update subscription now checks group membership; admin-only actions are enforced.
+- 2.0 shipped a fallback JWT secret in this public repository, so anyone could forge a login. The backend now **refuses to start against PostgreSQL without its own `JWT_SECRET`**.
+- WebSocket connections need a valid token; login is rate limited; wrong passwords return 401 instead of 500.
+
+**Bug fixes**
+- “Settle” recorded payments in the wrong direction, and settlements were duplicated as expenses. Both fixed; payments can now be undone.
+- People added to a group by email can now sign up and claim their account.
+- Dashboard totals are split by currency instead of adding rupees to dollars.
+
+**New**
+- Activity feed, member management (remove, leave, promote to admin), invite-code reset, deep links (`/groups/:id`, `/join/:code`).
+- UPI ID on your profile and one-tap **UPI pay links** when settling up in INR.
+- Foreign-currency expenses converted at a live rate ([Frankfurter](https://frankfurter.dev)) or one you type in; the original amount is kept.
+- CSV export, light/dark/system theme, toasts and accessible dialogs, a proper offline-capable PWA with update prompt.
+- Database schema managed by **Flyway** migrations; existing 2.0 databases are upgraded in place.
+- Faster cold starts on Render (Class Data Sharing), CI on every push, and APKs built and published automatically on release tags.
+
+---
+
+## ✨ Features
+
+| | |
+| :--- | :--- |
+| **Exact splits** | Equal, exact amounts or percentages, with multiple payers. All money is integer cents, so splits always add up. |
+| **Fewest payments** | Optional debt simplification turns a web of IOUs into at most *N−1* payments. |
+| **Live for everyone** | Changes appear instantly for every member over WebSockets, no refresh needed. |
+| **Any currency** | Each group has a currency; foreign expenses are converted and the original amount is kept. `Intl` formatting (₹1,23,456.00, ¥1,235). |
+| **Quick entry** | Type *“Dinner 1500 paid by Alice”* and the form fills itself (parsed offline, in the browser). |
+| **Settle up** | Record payments, undo them, pay via UPI deep link. |
+| **Budgets & archive** | Trip budgets with a progress bar; archive finished groups. |
+| **Receipts** | Photos compressed in the browser and attached to expenses. |
+| **Export** | CSV, Excel (multi-sheet `.xlsx`) and a WhatsApp summary. |
+| **Activity** | A feed of who added, edited or settled what. |
+| **Apps** | Installable PWA (iOS/Android/desktop) and an Android APK with hardware back button support. |
+
+---
+
+## 🏗️ Architecture
 
 ```mermaid
 flowchart TD
-    subgraph Clients["📱 Multi-Platform Clients"]
-        APK["Android APK v2.0<br/>(Capacitor 8 / WebView)"]
-        PWA["iOS / Mobile Safari<br/>(Progressive Web App)"]
-        WEB["Desktop Browser<br/>(Chrome / Safari / Firefox)"]
+    subgraph Clients
+        APK["Android APK<br/>(Capacitor 8)"]
+        PWA["PWA / browser"]
     end
 
-    subgraph CDN["⚡ Global Edge CDN (Free)"]
-        CF["Cloudflare Pages<br/>(Static Edge Assets + SPA Routing)"]
+    CF["Cloudflare Pages<br/>static SPA + PWA"]
+
+    subgraph Render["Render (free web service)"]
+        BE["Spring Boot 4.1 · Java 21<br/>REST /api/v1 · STOMP /ws"]
     end
 
-    subgraph Cloud["☁️ Free-Tier Cloud Infrastructure"]
-        BE["Spring Boot 3.3.4 (Java 23/21)<br/>REST API • STOMP WebSocket Broker"]
-        Engine["Dual Max-Heap Solver<br/>Debt Simplification Engine"]
-        POI["Apache POI Engine<br/>Excel .xlsx Generator"]
-        DB[("Neon Cloud PostgreSQL<br/>Serverless Database • ACID")]
-    end
+    DB[("Neon PostgreSQL<br/>scale-to-zero")]
+    GH["GitHub Actions<br/>CI · APK releases · keep-warm"]
 
-    PWA -->|Loads Assets| CF
-    WEB -->|Loads Assets| CF
-    APK -->|REST API & STOMP /ws| BE
-    PWA -->|REST API & STOMP /ws| BE
-    WEB -->|REST API & STOMP /ws| BE
-    BE <--> Engine
-    BE <--> POI
-    BE <-->|HikariCP Pool / JPA| DB
+    PWA -->|loads| CF
+    APK -->|REST + WebSocket| BE
+    PWA -->|REST + WebSocket| BE
+    BE <-->|Flyway · JPA · Hikari minIdle=0| DB
+    GH -.->|"/api/v1/health (no DB)"| BE
 ```
 
-| Component | Technology | Rationale |
-| :--- | :--- | :--- |
-| **Backend Runtime** | Java 23 / 21 LTS | High-performance virtual threads, strong typing. |
-| **Backend Framework** | Spring Boot 3.3.4 | Spring Security 6, Spring Data JPA, Hibernate ORM, WebSocket STOMP. |
-| **Real-Time Messaging**| Spring WebSocket + STOMP | Lightweight in-memory broker, zero external message queue required. |
-| **Export Generator** | Apache POI 5.2.5 | Native multi-sheet Microsoft Excel `.xlsx` generation. |
-| **Authentication** | Stateless JWT (`jjwt` 0.12.6) | 30-day HMAC-SHA256 tokens with zero session storage overhead. |
-| **Database** | Neon Serverless PostgreSQL | High-availability cloud Postgres with SSL, zero-cost scale-to-zero. |
-| **Frontend Framework** | React 19 + TypeScript | High-performance React compiler ready, strict type-safety. |
-| **Build Tool & Styling** | Vite 8 + Tailwind CSS v4 | Sub-second HMR, instant production builds, mobile utility styling. |
-| **Mobile Runtime** | Capacitor 8 | Native Android bridge with hardware back button and safe-area support. |
-| **Free Cloud Hosting** | Neon + Render + Cloudflare | 100% free hosting with global CDN, automated CI/CD, and serverless Postgres. |
+| Layer | Technology |
+| :--- | :--- |
+| Backend | Java 21, Spring Boot 4.1 (Hibernate 7, Jackson 3), Spring Security, virtual threads |
+| Database | PostgreSQL on Neon; Flyway migrations; in-memory H2 for local development and tests |
+| Real time | Spring's built-in STOMP broker, JWT-authenticated, per-group topics |
+| Frontend | React 19, TypeScript, Vite, Tailwind CSS v4, React Router, TanStack Query |
+| PWA | `vite-plugin-pwa` (Workbox), network-first navigation, update prompt |
+| Mobile | Capacitor 8 (Android) |
+| Tests | JUnit + MockMvc (backend), Vitest (frontend), both in CI |
 
----
-
-## 📂 Project Directory Structure
+### Project layout
 
 ```text
 settlehub/
-├── README.md                           # Main architecture & deployment documentation
-├── SettleHub.apk                       # Production-compiled Android standalone APK v2.0 (~4.20 MB)
-├── render.yaml                         # 1-Click Render infrastructure blueprint
-├── neon.ts                             # Neon PostgreSQL branch configuration
-├── .gitignore                          # Comprehensive root gitignore
-│
-├── backend/                            # Spring Boot 3 Java Service
-│   ├── Dockerfile                      # Multi-stage lightweight Alpine build (Temurin JRE 21)
-│   ├── pom.xml                         # Maven dependencies (JPA, Security, JJWT, Postgres, POI, WebSocket)
-│   └── src/
-│       ├── main/
-│       │   ├── java/com/settlehub/
-│       │   │   ├── SettleHubApplication.java
-│       │   │   ├── config/             # SecurityConfig, DatabaseConfiguration, WebSocketConfig, GlobalExceptionHandler
-│       │   │   ├── controller/         # Auth, Group, Expense, Balance, Settlement, Export, Health
-│       │   │   ├── dto/                # Request & Response DTOs (GroupDto, ExpenseDto, SettlementDto)
-│       │   │   ├── engine/             # DebtSimplificationService, SplitStrategy implementations
-│       │   │   ├── model/              # User, Group, GroupMember, Expense, ExpenseSplit, Settlement entities
-│       │   │   ├── repository/         # Spring Data JPA Repositories
-│       │   │   ├── security/           # JwtTokenProvider, JwtAuthenticationFilter, UserPrincipal
-│       │   │   └── service/            # GroupService, ExpenseService, BalanceService, ExportService, WebSocketPublisher
-│       │   └── resources/
-│       │       └── application.properties # ${PORT:8080}, ${DATABASE_URL}, HikariCP settings
-│       └── test/java/com/settlehub/    # 11 Unit & Integration tests (mvn test: 100% pass)
-│
-├── frontend/                           # React 19 + Vite + Tailwind CSS Single Page App
-│   ├── package.json
-│   ├── vite.config.ts
-│   ├── capacitor.config.ts             # Capacitor configuration (App ID: com.settlehub.app)
-│   ├── index.html                      # PWA meta tags, safe-area viewport
-│   ├── public/
-│   │   ├── _redirects                  # Cloudflare Pages SPA rewrite rule (/* /index.html 200)
-│   │   ├── manifest.json               # Mobile PWA manifest
-│   │   └── sw.js                       # Service Worker for offline asset caching
-│   ├── src/
-│   │   ├── App.tsx                     # Main router and view orchestrator
-│   │   ├── index.css                   # Global Tailwind styles, viewport clamping, safe-area
-│   │   ├── components/                 # Dashboard, GroupDetail, AddExpenseModal, ExportSummaryModal, etc.
-│   │   ├── services/
-│   │   │   ├── api.ts                  # Centralized REST API service
-│   │   │   └── websocket.ts            # STOMP WebSocket hook with auto-reconnect
-│   │   ├── types/                      # TypeScript domain models and interfaces
-│   │   └── utils/                      # Currency formatting & symbols
-│   └── android/                        # Capacitor Android Native Studio Project
-│       ├── app/src/main/
-│       │   ├── AndroidManifest.xml     # Internet & Cleartext permissions
-│       │   └── assets/public/          # Synced production web assets
-│       └── build.gradle                # Gradle build scripts
-│
-└── docs/
-    ├── settlehub_2.0_architecture_review.md # Full 2.0 Architectural Review & Code Quality Report
-    ├── technical_spec.md               # Reverse-engineered GreenDAO schemas & wire protocol
-    └── deployment.md                   # Cloud deployment recipes
+├── render.yaml                 # Render Blueprint (backend; database is Neon)
+├── .github/workflows/          # ci.yml, release-apk.yml, keep-warm.yml
+├── backend/
+│   ├── Dockerfile              # CDS-trained image tuned for 0.1 CPU / 512 MB
+│   └── src/main/
+│       ├── java/com/settlehub/ # config, controller, dto, engine, model, repository, security, service
+│       └── resources/db/migration/   # Flyway: V1 (2.0 baseline), V2 (3.0)
+├── frontend/
+│   ├── src/pages/              # Dashboard, GroupPage, Join, Landing
+│   ├── src/components/         # ui/, layout/, group/, modals/
+│   ├── src/hooks/              # queries (TanStack Query), live socket, auth, theme
+│   ├── src/lib/                # api, money, quick-entry parser, fx, upi, csv
+│   └── android/                # Capacitor Android project
+└── docs/                       # 3.0 plan, deployment runbook, handoff notes
 ```
 
 ---
 
-## 🔄 End-to-End System Flow
+## 📐 Maths
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Alice as 👩 Alice (Android APK)
-    actor Bob as 👨 Bob (iPhone PWA)
-    participant API as 🌐 Spring Boot Backend
-    participant WS as ⚡ STOMP WebSocket Broker
-    participant Solver as 🧮 Dual Max-Heap Solver
-    participant DB as 🐘 Neon PostgreSQL
+### Cent-precision fair division
+Splitting $C$ cents among $N$ people equally:
+$$\text{base} = \lfloor C / N \rfloor, \quad \text{remainder} = C \bmod N$$
+The first $\text{remainder}$ people get $\text{base} + 1$ cents and the rest get $\text{base}$, so the shares always add up to exactly $C$.
 
-    Note over Alice,Bob: 1. Live WebSocket Subscription
-    Alice->>WS: Connect /ws & Subscribe /topic/groups/{id}
-    Bob->>WS: Connect /ws & Subscribe /topic/groups/{id}
+### Minimum cash flow
+With net balances $B_i$ where $\sum B_i = 0$:
+1. Put creditors ($B_i > 0$) in one max-heap and debtors ($|B_i|$ for $B_i < 0$) in another.
+2. Repeatedly take the largest debtor and largest creditor, and transfer $\min(D, C)$.
+3. Push back whoever still has a balance.
 
-    Note over Alice: 2. Record Expense with Receipt Photo
-    Alice->>API: POST /api/v1/groups/{id}/expenses (Resort ₹15,000 + Receipt Photo + Tag STAY)
-    API->>DB: Save Expense & Base64 compressed receipt URL
-    API->>WS: Broadcast EXPENSE_CREATED event
-    WS-->>Bob: Live Event -> triggers instant background refresh
-
-    Note over Bob: 3. Real-Time Balance Synchronization
-    Bob->>API: GET /api/v1/groups/{id}/balances
-    API->>DB: Fetch all group expenses and settlements
-    API->>Solver: Compute Net Balances & Min-Cash-Flow debts
-    Solver-->>API: Minimized Debt: [Bob owes Alice ₹7,500]
-    API-->>Bob: 200 OK (Group Balance Summary)
-
-    Note over Bob: 4. Export & Settlement
-    Bob->>API: GET /api/v1/export/groups/{id}/whatsapp
-    API-->>Bob: WhatsApp copy text & wa.me deep-link
-    Bob->>API: POST /api/v1/settlements (Bob pays Alice ₹7,500)
-    API->>DB: Record Settlement in permanent audit log
-    API->>WS: Broadcast SETTLEMENT_RECORDED event
-    WS-->>Alice: Live Event -> Alice's UI shows "All settled up!"
-```
+This finishes in at most $N-1$ payments.
 
 ---
 
-## 📐 Mathematical Foundation
+## 📱 Mobile apps
 
-### 1. Cent-Precision Fair Division (`divideFairly`)
-When splitting an expense of $C$ cents among $N$ participants equally:
-$$\text{base} = \lfloor C / N \rfloor, \quad \text{remainder} = C \pmod N$$
-The first $\text{remainder}$ participants are assigned $\text{base} + 1$ cents, and the remaining participants are assigned $\text{base}$ cents.
-$$\sum_{i=1}^{N} \text{share}_i = \text{remainder} \cdot (\text{base} + 1) + (N - \text{remainder}) \cdot \text{base} = C$$
-This guarantees that the sum of splits **always equals the total cost to the exact cent**, eliminating float rounding leakage.
+### Android
+Download **[SettleHub.apk](https://github.com/byte2code/settlehub/releases/latest/download/SettleHub.apk)** from the [latest release](https://github.com/byte2code/settlehub/releases/latest), open it and tap **Install** (allow *Install unknown apps* if asked). The APK is built by GitHub Actions for every `v*` tag and already points at the hosted backend; the **Server** icon in the app lets you point it elsewhere.
 
-### 2. Dual Max-Heap Min-Cash-Flow Solver
-Given $N$ participants with net balances $B_i$ such that $\sum_{i=1}^N B_i = 0$:
-1. Participants with $B_i > 0$ are inserted into a **Max-Heap of Creditors**.
-2. Participants with $B_i < 0$ are inserted into a **Max-Heap of Debtors** using $|B_i|$.
-3. In each iteration, extract the maximum debtor $D$ and maximum creditor $C$.
-4. Transact $\min(D.\text{amount}, C.\text{amount})$ from $D$ to $C$.
-5. Reinsert any remaining balance back into the respective heap.
-6. The algorithm terminates in at most $N-1$ transactions and completely eliminates multi-party circular debts.
+> Coming from the 2.0 APK? It was signed with a different key, so uninstall 2.0 first.
+
+### iPhone / iPad (PWA)
+Open the web app in Safari → **Share** → **Add to Home Screen**. It runs full screen and updates itself.
 
 ---
 
-## 📱 Mobile Apps (Android APK & iOS PWA)
+## 🚀 Free deployment ($0/month)
 
-### Android Standalone APK
+| Piece | Service | Free allowance | How SettleHub stays inside it |
+| :--- | :--- | :--- | :--- |
+| Backend | Render web service | 512 MB, 0.1 CPU, 750 h/month; sleeps after 15 idle min | One instance; CDS + SerialGC + C1 for faster wake-up |
+| Database | Neon | 0.5 GB, scale-to-zero | No idle connections (Hikari `minimumIdle=0`); health checks don't touch the DB |
+| Frontend | Cloudflare Pages | Unlimited static bandwidth, 500 builds/month | Static SPA + PWA |
+| CI & APK | GitHub Actions | Free on public repos | Tests on push/PR, APK on tags |
+| FX rates | Frankfurter | Free, no key | Fetched by the browser on demand |
+| Payments | UPI deep links | Free | `upi://pay` intent, no gateway |
 
-The native Android package is ready for direct installation on any Android device without requiring Google Play Store:
+Step-by-step instructions are in **[docs/deployment.md](docs/deployment.md)**. In short:
 
-| Option | Download Link | Notes |
+1. **Neon**: create a project and copy its connection string.
+2. **Render**: *New → Blueprint* → this repo. Paste the Neon string as `DATABASE_URL`. `JWT_SECRET` is generated for you.
+3. **Cloudflare Pages**: root `frontend`, build `npm run build`, output `dist`, env `VITE_API_URL=https://<your-service>.onrender.com/api/v1`.
+4. **GitHub**: set the repository variable `SETTLEHUB_API_URL` (same value as `VITE_API_URL`), then push a tag such as `v3.0.0` to publish the APK.
+
+---
+
+## ⚙️ Configuration
+
+Backend environment variables:
+
+| Variable | Default | Purpose |
 | :--- | :--- | :--- |
-| **Direct APK Download** | [📥 **Download SettleHub.apk (v2.0.0)**](https://github.com/byte2code/settlehub/releases/download/v2.0.0/SettleHub.apk) | Hosted on GitHub Releases CDN (~4.20 MB) |
-| **Repository File** | [📁 `SettleHub.apk`](./SettleHub.apk?raw=true) | Direct raw download from repository tree |
-| **GitHub Release** | [🏷️ **View Release v2.0.0**](https://github.com/byte2code/settlehub/releases/tag/v2.0.0) | Release notes, checksums, and assets |
+| `DATABASE_URL` | *(unset → in-memory H2)* | `postgres://` / `postgresql://` / `jdbc:` URL, e.g. from Neon |
+| `JWT_SECRET` | *(required with PostgreSQL)* | 32+ random characters (`openssl rand -hex 32`). Changing it logs everyone out |
+| `APP_CORS_ALLOWED_ORIGINS` | localhost, `https://*.pages.dev`, the Android app | Comma-separated origin patterns; add a custom frontend domain here |
+| `APP_SEED_DEMO_DATA` | `auto` | `auto` seeds demo users only on H2; `true`/`false` to force |
+| `APP_AUTH_RATE_LIMIT` | `10` | Login/register attempts per minute per client |
+| `APP_RECEIPT_MAX_CHARS` | `480000` | Largest receipt photo accepted (data-URL length, about 350 KB) |
+| `JWT_EXPIRATION_MS` | `2592000000` (30 days) | Session length |
+| `PORT` | `8080` | HTTP port (Render sets this) |
 
-#### Installation Instructions:
-1. Download `SettleHub.apk` via the direct link above on your Android phone.
-2. Open the downloaded `.apk` file $\rightarrow$ tap **Install**.
-3. If prompted by Android, enable *"Install unknown apps"* for your browser or file manager.
-4. Launch **SettleHub** from your home screen.
-5. Tap the **Server** icon in the top navbar $\rightarrow$ enter your deployed backend URL $\rightarrow$ tap **Save & Connect**. (Or leave as default for local testing).
+Frontend build variables: `VITE_API_URL`, the backend's `/api/v1` URL (defaults to `/api/v1` on the same origin), and optionally `VITE_PUBLIC_WEB_URL`, the web app's address, so invite links shared from the Android app open the website (without it the app shares just the code).
 
-### iOS (iPhone & iPad) PWA
-Apple restricts sideloading standalone `.ipa` files without an active Apple Developer subscription. SettleHub is fully configured as a Progressive Web App:
+GitHub repository settings used by the workflows:
 
-1. Open your deployed Cloudflare Pages URL in **Safari** on iOS.
-2. Tap the **Share** button (box with upward arrow).
-3. Tap **"Add to Home Screen"**.
-4. The app installs with a native icon, launches full-screen with no browser navigation bars, and supports safe-area notch displays.
-
----
-
-## 🚀 100% Free Cloud Deployment Guide
-
-### Part A: Backend & Neon PostgreSQL on Render
-
-Render provides a 1-click infrastructure blueprint via `render.yaml`:
-
-1. Sign up or log into **[dashboard.render.com](https://dashboard.render.com/)**.
-2. Click **New +** $\rightarrow$ select **Blueprint**.
-3. Connect your GitHub repository (`https://github.com/byte2code/settlehub`).
-4. Set the `DATABASE_URL` environment variable to your Neon Serverless PostgreSQL connection string:
-   ```text
-   postgresql://user:password@ep-xyz.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require
-   ```
-5. Click **Apply**. When deployment finishes (~3 minutes), note your live URL (e.g. `https://settlehub-backend.onrender.com`).
-6. Test the health probe:
-   ```bash
-   curl https://settlehub-backend.onrender.com/health
-   # Returns: {"status":"UP","service":"settlehub-backend","version":"2.0.0"}
-   ```
-
-### Part B: Frontend on Cloudflare Pages
-
-1. Log into **[dash.cloudflare.com](https://dash.cloudflare.com/)** $\rightarrow$ **Workers & Pages** $\rightarrow$ **Create application** $\rightarrow$ **Pages** $\rightarrow$ **Connect to Git**.
-2. Select your repository.
-3. Configure the build parameters:
-   - **Framework preset:** `Vite`
-   - **Root directory:** `frontend`
-   - **Build command:** `npm run build`
-   - **Build output directory:** `dist`
-4. Expand **Environment variables** and add:
-   - `VITE_API_URL` = `https://settlehub-backend.onrender.com/api/v1`
-5. Click **Save and Deploy**. Your web app and PWA will be live worldwide in ~60 seconds.
+| Name | Kind | Used by |
+| :--- | :--- | :--- |
+| `SETTLEHUB_API_URL` | variable | `release-apk.yml`: backend URL baked into the APK (required) |
+| `SETTLEHUB_WEB_URL` | variable | `release-apk.yml`: web app address used for invite links in the APK (optional) |
+| `SETTLEHUB_BACKEND_URL` | variable | `keep-warm.yml`: enables the keep-warm ping (optional) |
+| `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` | secrets | `release-apk.yml`: sign the APK with your own key so updates install over each other (recommended) |
 
 ---
 
-## 📡 API Reference
+## ⬆️ Upgrading from 2.0
 
-Base Endpoint: `/api/v1`
-
-| Method | Endpoint | Description | Auth Required |
-| :--- | :--- | :--- | :---: |
-| `GET` | `/health` | Cloud liveness & readiness probe | No |
-| `POST` | `/api/v1/auth/register` | Register new user account | No |
-| `POST` | `/api/v1/auth/login` | Authenticate and retrieve 30-day JWT token | No |
-| `GET` | `/api/v1/auth/me` | Fetch authenticated user profile | Yes |
-| `PATCH`| `/api/v1/auth/me/currency` | Update user preferred default currency | Yes |
-| `GET` | `/api/v1/groups` | List user groups with net balances & budgets | Yes |
-| `POST` | `/api/v1/groups` | Create new group with optional target budget | Yes |
-| `GET` | `/api/v1/groups/{id}` | Retrieve group details, members, budget pacing | Yes |
-| `PUT` | `/api/v1/groups/{id}` | Update group settings (archive/restore, budget, simplify) | Yes |
-| `POST` | `/api/v1/groups/{id}/members` | Add member to group by email | Yes |
-| `POST` | `/api/v1/groups/join` | Join group via 6-digit Invite Code | Yes |
-| `GET` | `/api/v1/groups/{id}/expenses` | List group expenses with category & receipt URL | Yes |
-| `POST` | `/api/v1/groups/{id}/expenses` | Record new expense (EQUAL, EXACT, PERCENT) | Yes |
-| `PUT` | `/api/v1/expenses/{id}` | Edit existing expense and recalculate balances | Yes |
-| `DELETE`| `/api/v1/expenses/{id}` | Delete expense and recompute balances | Yes |
-| `GET` | `/api/v1/groups/{id}/balances` | Get pairwise debts & Min-Cash-Flow simplified debts | Yes |
-| `POST` | `/api/v1/settlements` | Record debt settlement repayment between members | Yes |
-| `GET` | `/api/v1/settlements/groups/{id}` | Retrieve group settlement audit history log | Yes |
-| `GET` | `/api/v1/export/groups/{id}/whatsapp`| Generate formatted WhatsApp summary text | Yes |
-| `GET` | `/api/v1/export/groups/{id}/excel` | Download native multi-sheet Microsoft Excel (`.xlsx`) | Yes |
-| `POST` | `/api/v1/export/groups/{id}/email` | Email group transaction and balance report | Yes |
-| `WS` | `/ws` | STOMP WebSocket endpoint for real-time group events | No handshake auth |
+1. Set `JWT_SECRET` (`openssl rand -hex 32`) on the backend. It will not start against PostgreSQL without one. Because 2.0's secret was public, a new secret logs everyone out once; that is intended.
+2. Keep `DATABASE_URL` pointing at your database (or move to Neon; see [deployment](docs/deployment.md)). On first start Flyway records the existing 2.0 schema as version 1 and applies the 3.0 migration: receipts move to their own table and nothing is deleted.
+3. If the frontend is on a custom domain, add it to `APP_CORS_ALLOWED_ORIGINS`.
+4. Old “payment” expenses that 2.0 created when settling stay in the database but are hidden from the expense list; the payments history is the source of truth.
+5. Android users need to uninstall the 2.0 APK before installing 3.0 (different signing key).
 
 ---
 
-## 💻 Local Development Guide
+## 💻 Local development
 
-### Prerequisites
-- **Java 21 or 23** & **Maven 3.9+**
-- **Node.js 20+** & **npm**
-- **Android Command-Line Tools** (optional, for compiling APK)
+Requirements: **Java 21+**, **Maven 3.9+**, **Node 22+**.
 
-### 1. Run Backend Locally
 ```bash
+# Backend on in-memory H2 with demo users alice@ / bob@settlehub.com (password: password123)
 cd backend
-export $(cat ../.env.local | xargs) # Loads Neon PostgreSQL credentials
-mvn clean spring-boot:run
-# Server starts on port 8080 (http://localhost:8080)
+mvn test
+mvn spring-boot:run -Dspring-boot.run.jvmArguments=-Dapp.database-url.enabled=false
 ```
 
-### 2. Run Frontend Locally
+Without that flag the backend uses a `DATABASE_URL` from your shell or from a `.env.local` / `.env` file in `backend/` or the repo root, and then also needs `JWT_SECRET`. Use a [Neon branch](https://neon.tech/docs/introduction/branching) rather than your production database for this. Tests always use H2.
+
 ```bash
+# Frontend on http://localhost:3000; proxies /api and /ws to :8080
 cd frontend
-npm install
+npm ci
+npm test && npm run lint
 npm run dev
-# Vite dev server starts on http://localhost:3000 with real-time WebSocket support
 ```
 
-### 3. Compile Android APK Locally
+Build the Android APK locally (needs the Android SDK):
+
 ```bash
 cd frontend
-npm run build
+VITE_API_URL=https://<your-service>.onrender.com/api/v1 npm run build
 npx cap sync android
-cd android
-./gradlew assembleDebug
-# Generated APK at: frontend/android/app/build/outputs/apk/debug/app-debug.apk
-```
-
-### 4. Run Automated E2E Test Suite
-```bash
-bash scratch/test_all_scenarios.sh
-# Runs 33 end-to-end integration and edge-case test scenarios
+cd android && ./gradlew assembleDebug
+# → frontend/android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
 ---
 
-## 🛡️ Security & Production Hardening
+## 📡 API reference
 
-- **Stateless Authorization:** Every request is authenticated using JWT bearer tokens validated in `JwtAuthenticationFilter`.
-- **CORS Management:** Configured with wildcard origin pattern matching to accept requests from both Cloudflare Pages domains (`*.pages.dev`) and mobile WebView protocols (`capacitor://localhost`, `https://localhost`).
-- **Unified Error Handling:** `GlobalExceptionHandler` intercepts exceptions and returns consistent, sanitized JSON responses.
-- **Neon Cloud Isolation:** SSL connections enforced (`sslmode=require`) with automatic HikariCP connection health validation.
-- **Zero Secrets in Git:** Sensitive keys (`JWT_SECRET`, database passwords) are injected exclusively via cloud environment variables; `.env.local` is strictly gitignored.
+All routes are under `/api/v1` and need `Authorization: Bearer <token>` unless marked public. Group routes return 404 to non-members.
+
+| Method | Path | Description |
+| :--- | :--- | :--- |
+| `GET` | `/health` | Liveness, no database (public) |
+| `GET` | `/health/ready` | Readiness, checks the database (public) |
+| `POST` | `/auth/register`, `/auth/login` | Create account / sign in (public, rate limited) |
+| `GET` `PATCH` | `/auth/me` | Profile (name, UPI ID, default currency) |
+| `POST` | `/auth/me/password` | Change password |
+| `GET` `POST` | `/groups` | List / create groups |
+| `GET` `PUT` `DELETE` | `/groups/{id}` | Group details / settings / delete (admin) |
+| `POST` | `/groups/{id}/members` | Add a member by email |
+| `PATCH` `DELETE` | `/groups/{id}/members/{userId}` | Promote / remove a member (admin) |
+| `POST` | `/groups/{id}/leave` | Leave a group |
+| `POST` | `/groups/{id}/invite-code` | Reset the invite code (admin) |
+| `GET` | `/groups/invite/{code}` | Preview a group from its invite code |
+| `POST` | `/groups/join` | Join with an invite code |
+| `GET` | `/groups/{id}/activity` | Activity feed |
+| `GET` `POST` | `/groups/{id}/expenses` | List / add expenses (EQUAL, EXACT, PERCENT) |
+| `PUT` `DELETE` | `/expenses/{id}` | Edit / delete an expense |
+| `GET` | `/expenses/{id}/receipt` | Receipt photo |
+| `GET` | `/groups/{id}/balances` | Net balances, direct and simplified debts |
+| `GET` | `/groups/{id}/settlements` | Payment history |
+| `POST` | `/settlements` | Record a payment |
+| `DELETE` | `/settlements/{id}` | Undo a payment |
+| `GET` | `/groups/{id}/export/excel`, `/groups/{id}/export/whatsapp` | Excel workbook / WhatsApp text |
+| `POST` | `/groups/{id}/export/email` | Email a report (only if SMTP is configured via `spring.mail.*`) |
+| `WS` | `/ws` (not under `/api/v1`) | STOMP; send the JWT on CONNECT, subscribe to `/topic/groups/{id}` |
+
+---
+
+## 🛡️ Security
+
+- Every group endpoint and WebSocket subscription checks membership; admin actions check the role.
+- Stateless JWT (HMAC-SHA256) with a required, private secret in production; no secret in the repository.
+- Rate-limited login and registration; passwords hashed with BCrypt, 8 characters minimum.
+- CORS limited to known origins (Cloudflare Pages, localhost, the Android WebView, and whatever you add).
+- TLS to the database (`sslmode=require`); `.env*` files are gitignored and excluded from Docker builds.
 
 ---
 
 ## 📄 License
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+
+MIT. See [LICENSE](LICENSE).

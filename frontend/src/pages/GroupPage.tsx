@@ -139,8 +139,8 @@ export function GroupPage() {
           </div>
         </div>
         <div className="grid grid-cols-4 gap-2 sm:flex">
-          <button className="btn-secondary" onClick={() => setModal({ kind: 'invite' })}><UserPlus className="h-4 w-4" /><span className="hidden sm:inline">Invite</span></button>
-          <button className="btn-secondary" onClick={() => setModal({ kind: 'export' })}><Share2 className="h-4 w-4" /><span className="hidden sm:inline">Share</span></button>
+          <button className="btn-secondary" onClick={() => setModal({ kind: 'invite' })} aria-label="Invite people"><UserPlus className="h-4 w-4" /><span className="hidden sm:inline">Invite</span></button>
+          <button className="btn-secondary" onClick={() => setModal({ kind: 'export' })} aria-label="Share and export"><Share2 className="h-4 w-4" /><span className="hidden sm:inline">Share</span></button>
           <button className="btn-secondary" onClick={toggleArchive} title={group.archived ? 'Restore' : 'Archive'}>
             {group.archived ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
             <span className="hidden sm:inline">{group.archived ? 'Restore' : 'Archive'}</span>

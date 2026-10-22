@@ -1,37 +1,48 @@
 # ==============================================================================
-# SettleHub Backend Multi-Stage Dockerfile (Optimized for Free-Tier 512MB RAM)
+# SettleHub backend image, tuned for Render's free plan (0.1 CPU, 512 MB RAM)
+#
+# Render puts free services to sleep after 15 idle minutes, so every first request
+# pays for a JVM start. On 0.1 CPU that start is dominated by class loading and JIT,
+# which this image cuts down with:
+#   - Class Data Sharing (CDS): a training run at build time records the loaded
+#     classes into application.jsa, which the real start maps in instead of
+#     parsing and verifying them again.
+#   - C1 only (TieredStopAtLevel=1) and SerialGC: less background CPU and memory
+#     than C2 and G1 on a single throttled core.
 # ==============================================================================
 
-# Stage 1: Build Application
+# Stage 1: build the jar
 FROM maven:3.9.9-eclipse-temurin-21-alpine AS builder
 WORKDIR /build
 
-# Cache dependency layer
 COPY pom.xml .
 RUN mvn dependency:go-offline -B
 
-# Copy source and package fat JAR
 COPY src ./src
 RUN mvn clean package -DskipTests -B
 
-# Stage 2: Lightweight Production Runtime
+# Stage 2: runtime
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
-# Run as non-root user for container security
 RUN addgroup -S settlehub && adduser -S settlehub -G settlehub
-USER settlehub:settlehub
 
-# Copy packaged JAR from build stage
-COPY --from=builder /build/target/settlehub-backend-*.jar app.jar
-
-# JVM flags strictly tuned for Render / PaaS free-tier (512MB cgroup RAM limit):
-# - MaxRAMPercentage=75.0 caps max heap at ~384MB, leaving headroom for native threads and metaspace
-# - UseG1GC ensures responsive garbage collection under tight memory constraints
-# - ExitOnOutOfMemoryError prevents frozen zombie processes
-ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75.0 -XX:InitialRAMPercentage=50.0 -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError"
+# The same flags are used for the training run and at runtime; CDS needs them to match.
+ENV JAVA_TOOL_OPTIONS="-XX:+UseSerialGC -XX:TieredStopAtLevel=1 -XX:MaxRAMPercentage=75.0 -Xss512k -XX:+ExitOnOutOfMemoryError"
 ENV PORT=8080
 
+COPY --from=builder /build/target/settlehub-backend-*.jar settlehub.jar
+
+# Unpack into the layout CDS needs, then do a training run that starts the
+# application context and exits. No DATABASE_URL is set here, so the run uses the
+# in-memory H2 database and needs no network or secrets.
+RUN java -Djarmode=tools -jar settlehub.jar extract --destination application \
+    && rm settlehub.jar \
+    && java -XX:ArchiveClassesAtExit=application/application.jsa -Dspring.context.exit=onRefresh \
+         -jar application/settlehub.jar \
+    && chown -R settlehub:settlehub application
+
+USER settlehub:settlehub
 EXPOSE 8080
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-XX:SharedArchiveFile=application/application.jsa", "-Xshare:auto", "-jar", "application/settlehub.jar"]

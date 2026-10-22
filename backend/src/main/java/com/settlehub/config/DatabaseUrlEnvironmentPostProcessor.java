@@ -17,7 +17,8 @@ import java.util.Map;
  * DataSource and Flyway auto-configuration work unchanged.
  *
  * When no DATABASE_URL is present (environment, system property or a local .env file),
- * the in-memory H2 defaults from application.properties are used.
+ * the in-memory H2 defaults from application.properties are used. Setting
+ * app.database-url.enabled=false (done for the Maven test run) forces H2.
  *
  * Pool settings are tuned so Neon's free tier can scale compute to zero between requests:
  * no idle connections are kept open.
@@ -28,6 +29,10 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
+        // The test build sets this to false so a developer's .env.local can never point tests at a real database
+        if (!environment.getProperty("app.database-url.enabled", Boolean.class, true)) {
+            return;
+        }
         String databaseUrl = environment.getProperty("DATABASE_URL");
         if (isBlank(databaseUrl)) {
             databaseUrl = findInDotEnv();
