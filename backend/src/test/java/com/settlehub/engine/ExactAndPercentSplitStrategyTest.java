@@ -69,4 +69,25 @@ class ExactAndPercentSplitStrategyTest {
             percentStrategy.calculateSplits(5000L, participants, params)
         );
     }
+
+    @Test
+    @DisplayName("Percentage split uses largest remainder and is deterministic")
+    void testPercentageLargestRemainder() {
+        UUID u1 = UUID.randomUUID();
+        UUID u2 = UUID.randomUUID();
+        UUID u3 = UUID.randomUUID();
+        Map<UUID, Double> params = Map.of(u1, 33.33, u2, 33.33, u3, 33.34);
+        Map<UUID, Long> splits = percentStrategy.calculateSplits(100L, List.of(u1, u2, u3), params);
+        assertEquals(33L, splits.get(u1));
+        assertEquals(33L, splits.get(u2));
+        assertEquals(34L, splits.get(u3));
+    }
+
+    @Test
+    @DisplayName("Duplicate participants are rejected")
+    void testDuplicateParticipants() {
+        UUID u1 = UUID.randomUUID();
+        assertThrows(IllegalArgumentException.class, () ->
+            percentStrategy.calculateSplits(100L, List.of(u1, u1), Map.of(u1, 100.0)));
+    }
 }

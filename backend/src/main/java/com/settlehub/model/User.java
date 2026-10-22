@@ -29,6 +29,13 @@ public class User {
     @Column(nullable = false)
     private String currencyCode = "INR";
 
+    /** Invited by email but never signed up; can be claimed by registering with the same email. */
+    @Column(nullable = false)
+    private boolean placeholder = false;
+
+    @Column(name = "upi_id", length = 100)
+    private String upiId;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -76,6 +83,18 @@ public class User {
 
     public String getCurrencyCode() { return currencyCode; }
     public void setCurrencyCode(String currencyCode) { this.currencyCode = currencyCode; }
+
+    public boolean isPlaceholder() { return placeholder; }
+    public void setPlaceholder(boolean placeholder) { this.placeholder = placeholder; }
+
+    public String getUpiId() { return upiId; }
+    public void setUpiId(String upiId) { this.upiId = upiId; }
+
+    public static User placeholder(String email, String currencyCode) {
+        User user = new User(email, "", email.split("@")[0], "", currencyCode);
+        user.setPlaceholder(true);
+        return user;
+    }
 
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }

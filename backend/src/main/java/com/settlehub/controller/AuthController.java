@@ -9,9 +9,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/v1/auth")
-@CrossOrigin(originPatterns = "*", allowedHeaders = "*")
 public class AuthController {
 
     private final AuthService authService;
@@ -22,35 +23,36 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
-        AuthResponse response = authService.register(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.status(HttpStatus.CREATED).body(authService.register(request));
     }
 
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
-        AuthResponse response = authService.login(request);
-        return ResponseEntity.ok(response);
+    public AuthResponse login(@Valid @RequestBody LoginRequest request) {
+        return authService.login(request);
     }
 
     @GetMapping("/me")
-    public ResponseEntity<UserDto> getCurrentUser(@AuthenticationPrincipal UserPrincipal principal) {
-        if (principal == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-        UserDto userDto = authService.getCurrentUser(principal.getId());
-        return ResponseEntity.ok(userDto);
+    public UserDto getCurrentUser(@AuthenticationPrincipal UserPrincipal principal) {
+        return authService.getCurrentUser(principal.getId());
     }
 
+    @PatchMapping("/me")
+    public UserDto updateProfile(@AuthenticationPrincipal UserPrincipal principal,
+                                 @Valid @RequestBody UpdateProfileRequest request) {
+        return authService.updateProfile(principal.getId(), request);
+    }
+
+    /** 2.0-compatible shortcut for changing only the default currency. */
     @PatchMapping("/me/currency")
-    public ResponseEntity<UserDto> updateCurrency(
-        @AuthenticationPrincipal UserPrincipal principal,
-        @RequestBody java.util.Map<String, String> body
-    ) {
-        if (principal == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-        String currency = body.get("currencyCode");
-        UserDto userDto = authService.updateUserCurrency(principal.getId(), currency);
-        return ResponseEntity.ok(userDto);
+    public UserDto updateCurrency(@AuthenticationPrincipal UserPrincipal principal,
+                                  @RequestBody Map<String, String> body) {
+        return authService.updateUserCurrency(principal.getId(), body.get("currencyCode"));
+    }
+
+    @PostMapping("/me/password")
+    public ResponseEntity<Void> changePassword(@AuthenticationPrincipal UserPrincipal principal,
+                                               @Valid @RequestBody ChangePasswordRequest request) {
+        authService.changePassword(principal.getId(), request);
+        return ResponseEntity.noContent().build();
     }
 }

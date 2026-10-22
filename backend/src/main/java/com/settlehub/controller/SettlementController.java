@@ -8,15 +8,14 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1/settlements")
-@CrossOrigin(originPatterns = "*", allowedHeaders = "*")
+@RequestMapping("/api/v1")
 public class SettlementController {
 
     private final SettlementService settlementService;
@@ -25,19 +24,22 @@ public class SettlementController {
         this.settlementService = settlementService;
     }
 
-    @PostMapping
-    public ResponseEntity<SettlementDto> recordSettlement(
-        @AuthenticationPrincipal UserPrincipal principal,
-        @Valid @RequestBody CreateSettlementRequest request
-    ) {
-        SettlementDto settlement = settlementService.recordSettlement(principal.getId(), request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(settlement);
+    @PostMapping("/settlements")
+    public ResponseEntity<SettlementDto> recordSettlement(@AuthenticationPrincipal UserPrincipal principal,
+                                                          @Valid @RequestBody CreateSettlementRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(settlementService.recordSettlement(principal.getId(), request));
     }
 
-    @org.springframework.web.bind.annotation.GetMapping("/groups/{groupId}")
-    public ResponseEntity<java.util.List<SettlementDto>> getGroupSettlements(
-        @org.springframework.web.bind.annotation.PathVariable("groupId") java.util.UUID groupId
-    ) {
-        return ResponseEntity.ok(settlementService.getSettlementsForGroup(groupId));
+    @GetMapping({"/settlements/groups/{groupId}", "/groups/{groupId}/settlements"})
+    public List<SettlementDto> getGroupSettlements(@PathVariable("groupId") UUID groupId,
+                                                   @AuthenticationPrincipal UserPrincipal principal) {
+        return settlementService.getSettlementsForGroup(groupId, principal.getId());
+    }
+
+    @DeleteMapping("/settlements/{settlementId}")
+    public Map<String, Boolean> deleteSettlement(@PathVariable("settlementId") UUID settlementId,
+                                                 @AuthenticationPrincipal UserPrincipal principal) {
+        settlementService.deleteSettlement(settlementId, principal.getId());
+        return Map.of("success", true);
     }
 }

@@ -2,99 +2,115 @@ package com.settlehub.service;
 
 import com.settlehub.dto.CreateSettlementRequest;
 import com.settlehub.dto.SettlementDto;
+import com.settlehub.exception.ForbiddenException;
 import com.settlehub.model.*;
-import com.settlehub.repository.*;
+import com.settlehub.repository.GroupMemberRepository;
+import com.settlehub.repository.GroupRepository;
+import com.settlehub.repository.SettlementRepository;
 import com.settlehub.util.CurrencyUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
+
+import static com.settlehub.service.GroupAccessService.ROLE_ADMIN;
 
 @Service
 public class SettlementService {
 
     private final SettlementRepository settlementRepository;
     private final GroupRepository groupRepository;
-    private final UserRepository userRepository;
-    private final ExpenseRepository expenseRepository;
-    private final WebSocketEventPublisher eventPublisher;
+    private final GroupMemberRepository groupMemberRepository;
+    private final GroupAccessService access;
+    private final ActivityService activityService;
+    private final WebSocketEventPublisher events;
 
     public SettlementService(SettlementRepository settlementRepository,
                              GroupRepository groupRepository,
-                             UserRepository userRepository,
-                             ExpenseRepository expenseRepository,
-                             WebSocketEventPublisher eventPublisher) {
+                             GroupMemberRepository groupMemberRepository,
+                             GroupAccessService access,
+                             ActivityService activityService,
+                             WebSocketEventPublisher events) {
         this.settlementRepository = settlementRepository;
         this.groupRepository = groupRepository;
-        this.userRepository = userRepository;
-        this.expenseRepository = expenseRepository;
-        this.eventPublisher = eventPublisher;
+        this.groupMemberRepository = groupMemberRepository;
+        this.access = access;
+        this.activityService = activityService;
+        this.events = events;
     }
 
+    /**
+     * Records "payer paid payee". Any member may record a payment between two members
+     * (every change is in the activity feed). The amount is always in the group currency.
+     */
     @Transactional
     public SettlementDto recordSettlement(UUID currentUserId, CreateSettlementRequest request) {
-        User payer = userRepository.findById(currentUserId)
-            .orElseThrow(() -> new IllegalArgumentException("Payer user not found: " + currentUserId));
+        GroupMember me = access.requireMember(request.groupId(), currentUserId);
+        Group group = me.getGroup();
+        UUID payerId = request.payerId() != null ? request.payerId() : currentUserId;
 
-        User payee = userRepository.findById(request.payeeId())
-            .orElseThrow(() -> new IllegalArgumentException("Payee user not found: " + request.payeeId()));
-
+        User payer = memberUser(group.getId(), payerId);
+        User payee = memberUser(group.getId(), request.payeeId());
         if (payer.getId().equals(payee.getId())) {
-            throw new IllegalArgumentException("Cannot settle up with yourself.");
+            throw new IllegalArgumentException("Payer and payee must be different people");
         }
 
-        Group group = null;
-        if (request.groupId() != null) {
-            group = groupRepository.findById(request.groupId())
-                .orElseThrow(() -> new IllegalArgumentException("Group not found: " + request.groupId()));
+        Settlement settlement = new Settlement(group, payer, payee, request.amountCents(), group.getCurrencyCode(),
+            request.date() != null ? request.date() : Instant.now());
+        settlement.setCreatedBy(me.getUser());
+        if (request.note() != null && !request.note().isBlank()) {
+            settlement.setNote(request.note().trim());
         }
-
-        Instant date = request.date() != null ? request.date() : Instant.now();
-        String currency = (request.currencyCode() != null && !request.currencyCode().isBlank())
-            ? request.currencyCode().trim().toUpperCase()
-            : (group != null && group.getCurrencyCode() != null ? group.getCurrencyCode() : CurrencyUtil.DEFAULT_CURRENCY);
-
-        Settlement settlement = new Settlement(
-            group,
-            payer,
-            payee,
-            request.amountCents(),
-            currency,
-            date
-        );
         settlement = settlementRepository.save(settlement);
 
-        // Also record as a payment expense if within a group, mirroring Splitwise payment: true design
-        if (group != null) {
-            Expense paymentExpense = new Expense(
-                group,
-                String.format("Payment: %s paid %s", payer.getFirstName(), payee.getFirstName()),
-                request.amountCents(),
-                currency,
-                date,
-                "PAYMENT",
-                true,
-                payer
-            );
-            paymentExpense.addPayer(payer, request.amountCents());
-            paymentExpense.addSplit(payee, request.amountCents());
-            expenseRepository.save(paymentExpense);
-
-            group.setUpdatedAt(Instant.now());
-            groupRepository.save(group);
-            eventPublisher.publishGroupEvent(group.getId(), "SETTLEMENT_RECORDED", SettlementDto.fromEntity(settlement));
-        }
-
+        group.setUpdatedAt(Instant.now());
+        groupRepository.save(group);
+        String who = payer.getId().equals(currentUserId) ? payer.getFirstName() : me.getUser().getFirstName()
+            + " recorded that " + payer.getFirstName();
+        activityService.record(group, me.getUser(), Activity.Type.SETTLEMENT_RECORDED,
+            who + " paid " + payee.getFirstName() + " " + CurrencyUtil.formatCents(request.amountCents(), group.getCurrencyCode()),
+            request.amountCents());
+        events.publishGroupEvent(group.getId(), "SETTLEMENT_RECORDED", currentUserId, settlement.getId());
         return SettlementDto.fromEntity(settlement);
     }
 
     @Transactional(readOnly = true)
-    public java.util.List<SettlementDto> getSettlementsForGroup(UUID groupId) {
-        Group group = groupRepository.findById(groupId)
-            .orElseThrow(() -> new IllegalArgumentException("Group not found: " + groupId));
-        return settlementRepository.findAllByGroupOrderByDateDesc(group).stream()
+    public List<SettlementDto> getSettlementsForGroup(UUID groupId, UUID currentUserId) {
+        access.requireMember(groupId, currentUserId);
+        return settlementRepository.findByGroupId(groupId).stream()
             .map(SettlementDto::fromEntity)
             .toList();
+    }
+
+    /** Undo a recorded payment. Allowed for the payer, the payee, whoever recorded it, and admins. */
+    @Transactional
+    public void deleteSettlement(UUID settlementId, UUID currentUserId) {
+        Settlement settlement = access.requireSettlement(settlementId, currentUserId);
+        Group group = settlement.getGroup();
+        GroupMember me = access.requireMember(group.getId(), currentUserId);
+        boolean involved = settlement.getPayer().getId().equals(currentUserId)
+            || settlement.getPayee().getId().equals(currentUserId)
+            || (settlement.getCreatedBy() != null && settlement.getCreatedBy().getId().equals(currentUserId));
+        if (!involved && !ROLE_ADMIN.equals(me.getRole())) {
+            throw new ForbiddenException("Only the people involved or a group admin can undo this payment");
+        }
+
+        settlementRepository.delete(settlement);
+        group.setUpdatedAt(Instant.now());
+        groupRepository.save(group);
+        activityService.record(group, me.getUser(), Activity.Type.SETTLEMENT_DELETED,
+            me.getUser().getFirstName() + " removed the payment " + settlement.getPayer().getFirstName() + " → "
+                + settlement.getPayee().getFirstName() + " ("
+                + CurrencyUtil.formatCents(settlement.getAmountCents(), settlement.getCurrencyCode()) + ")",
+            settlement.getAmountCents());
+        events.publishGroupEvent(group.getId(), "SETTLEMENT_DELETED", currentUserId, settlementId);
+    }
+
+    private User memberUser(UUID groupId, UUID userId) {
+        return groupMemberRepository.findByGroupIdAndUserId(groupId, userId)
+            .map(GroupMember::getUser)
+            .orElseThrow(() -> new IllegalArgumentException("Payer and payee must both be members of the group"));
     }
 }

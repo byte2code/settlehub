@@ -38,6 +38,13 @@ public class Settlement {
     @Column(nullable = false)
     private Instant date = Instant.now();
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by_id")
+    private User createdBy;
+
+    @Column(length = 255)
+    private String note;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -73,6 +80,12 @@ public class Settlement {
 
     public Instant getDate() { return date; }
     public void setDate(Instant date) { this.date = date; }
+
+    public User getCreatedBy() { return createdBy; }
+    public void setCreatedBy(User createdBy) { this.createdBy = createdBy; }
+
+    public String getNote() { return note; }
+    public void setNote(String note) { this.note = note; }
 
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }

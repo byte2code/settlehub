@@ -1,1 +1,2 @@
+org.springframework.boot.EnvironmentPostProcessor=\
 com.settlehub.config.DatabaseUrlEnvironmentPostProcessor

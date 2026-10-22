@@ -9,7 +9,8 @@ public record UserDto(
     String firstName,
     String lastName,
     String fullName,
-    String currencyCode
+    String currencyCode,
+    String upiId
 ) {
     public static UserDto fromEntity(User user) {
         if (user == null) return null;
@@ -19,7 +20,8 @@ public record UserDto(
             user.getFirstName(),
             user.getLastName(),
             user.getFullName(),
-            user.getCurrencyCode()
+            user.getCurrencyCode(),
+            user.getUpiId()
         );
     }
 }

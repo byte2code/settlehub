@@ -2,11 +2,11 @@ package com.settlehub.service;
 
 import com.settlehub.dto.DebtRepaymentDto;
 import com.settlehub.dto.GroupBalanceSummaryDto;
+import com.settlehub.dto.GroupDto;
 import com.settlehub.engine.DebtSimplificationService;
 import com.settlehub.model.*;
 import com.settlehub.repository.ExpenseRepository;
 import com.settlehub.repository.GroupMemberRepository;
-import com.settlehub.repository.GroupRepository;
 import com.settlehub.repository.SettlementRepository;
 import com.settlehub.util.CurrencyUtil;
 import org.springframework.stereotype.Service;
@@ -14,165 +14,120 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 
+/**
+ * Net balance of a member = paid for expenses - owed on expenses + settlements paid - settlements received.
+ * Positive means the group owes them money.
+ *
+ * Balances for many groups are computed with a handful of aggregate queries, independent of the
+ * number of groups or expenses.
+ */
 @Service
 public class BalanceService {
 
-    private final GroupRepository groupRepository;
     private final GroupMemberRepository groupMemberRepository;
     private final ExpenseRepository expenseRepository;
     private final SettlementRepository settlementRepository;
     private final DebtSimplificationService debtSimplificationService;
+    private final GroupAccessService groupAccessService;
 
-    public BalanceService(GroupRepository groupRepository,
-                          GroupMemberRepository groupMemberRepository,
+    public BalanceService(GroupMemberRepository groupMemberRepository,
                           ExpenseRepository expenseRepository,
                           SettlementRepository settlementRepository,
-                          DebtSimplificationService debtSimplificationService) {
-        this.groupRepository = groupRepository;
+                          DebtSimplificationService debtSimplificationService,
+                          GroupAccessService groupAccessService) {
         this.groupMemberRepository = groupMemberRepository;
         this.expenseRepository = expenseRepository;
         this.settlementRepository = settlementRepository;
         this.debtSimplificationService = debtSimplificationService;
+        this.groupAccessService = groupAccessService;
+    }
+
+    /** groupId -> (userId -> net balance cents). Members of the groups appear even with a zero balance. */
+    @Transactional(readOnly = true)
+    public Map<UUID, Map<UUID, Long>> netBalancesForGroups(Collection<UUID> groupIds, List<GroupMember> members) {
+        Map<UUID, Map<UUID, Long>> result = new HashMap<>();
+        if (groupIds.isEmpty()) return result;
+
+        for (GroupMember m : members) {
+            result.computeIfAbsent(m.getGroup().getId(), k -> new LinkedHashMap<>()).put(m.getUser().getId(), 0L);
+        }
+        addRows(result, expenseRepository.sumPaidByGroupAndUser(groupIds), 1);
+        addRows(result, expenseRepository.sumOwedByGroupAndUser(groupIds), -1);
+        addRows(result, settlementRepository.sumPaidByGroupAndPayer(groupIds), 1);
+        addRows(result, settlementRepository.sumReceivedByGroupAndPayee(groupIds), -1);
+        return result;
     }
 
     @Transactional(readOnly = true)
-    public Map<UUID, Long> calculateGroupNetBalances(Group group) {
-        List<GroupMember> members = groupMemberRepository.findAllByGroup(group);
-        Map<UUID, Long> netBalances = new HashMap<>();
-
-        // Initialize all members with 0 balance
-        for (GroupMember member : members) {
-            netBalances.put(member.getUser().getId(), 0L);
-        }
-
-        // Tally all active expenses in group (excluding payment records which are tallied via settlements)
-        List<Expense> expenses = expenseRepository.findAllActiveByGroup(group);
-        for (Expense expense : expenses) {
-            if (expense.isPayment()) continue;
-
-            // Add paid amounts to payers
-            for (ExpensePayer payer : expense.getPayers()) {
-                UUID payerId = payer.getUser().getId();
-                netBalances.put(payerId, netBalances.getOrDefault(payerId, 0L) + payer.getPaidCents());
-            }
-
-            // Subtract owed amounts from split participants
-            for (ExpenseSplit split : expense.getSplits()) {
-                UUID debtorId = split.getUser().getId();
-                netBalances.put(debtorId, netBalances.getOrDefault(debtorId, 0L) - split.getOwedCents());
-            }
-        }
-
-        // Tally all settlements recorded directly
-        List<Settlement> settlements = settlementRepository.findAllByGroupOrderByDateDesc(group);
-        for (Settlement settlement : settlements) {
-            UUID payerId = settlement.getPayer().getId();
-            UUID payeeId = settlement.getPayee().getId();
-
-            // Payer settled debt -> their balance increases (debt reduced)
-            netBalances.put(payerId, netBalances.getOrDefault(payerId, 0L) + settlement.getAmountCents());
-            // Payee received funds -> their credit reduces
-            netBalances.put(payeeId, netBalances.getOrDefault(payeeId, 0L) - settlement.getAmountCents());
-        }
-
-        return netBalances;
+    public Map<UUID, Long> netBalances(UUID groupId) {
+        List<GroupMember> members = groupMemberRepository.findAllByGroupId(groupId);
+        return netBalancesForGroups(List.of(groupId), members).getOrDefault(groupId, new LinkedHashMap<>());
     }
 
     @Transactional(readOnly = true)
-    public GroupBalanceSummaryDto getGroupBalanceSummary(UUID groupId) {
-        Group group = groupRepository.findById(groupId)
-            .orElseThrow(() -> new IllegalArgumentException("Group not found: " + groupId));
+    public Map<UUID, Long> totalSpend(Collection<UUID> groupIds) {
+        Map<UUID, Long> result = new HashMap<>();
+        if (groupIds.isEmpty()) return result;
+        for (Object[] row : expenseRepository.sumSpendByGroup(groupIds)) {
+            result.put((UUID) row[0], ((Number) row[1]).longValue());
+        }
+        return result;
+    }
 
-        List<GroupMember> members = groupMemberRepository.findAllByGroup(group);
+    private static void addRows(Map<UUID, Map<UUID, Long>> target, List<Object[]> rows, int sign) {
+        for (Object[] row : rows) {
+            UUID groupId = (UUID) row[0];
+            UUID userId = (UUID) row[1];
+            long amount = ((Number) row[2]).longValue() * sign;
+            target.computeIfAbsent(groupId, k -> new LinkedHashMap<>()).merge(userId, amount, Long::sum);
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public GroupBalanceSummaryDto getGroupBalanceSummary(UUID groupId, UUID currentUserId) {
+        Group group = groupAccessService.requireGroup(groupId, currentUserId);
+        String currency = GroupDto.currencyOf(group);
+
+        List<GroupMember> members = groupMemberRepository.findAllByGroupId(groupId);
         Map<UUID, String> userNames = new HashMap<>();
         for (GroupMember m : members) {
             userNames.put(m.getUser().getId(), m.getUser().getFullName());
         }
 
-        Map<UUID, Long> netBalances = calculateGroupNetBalances(group);
+        Map<UUID, Long> netBalances = netBalancesForGroups(List.of(groupId), members)
+            .getOrDefault(groupId, new LinkedHashMap<>());
 
-        // Calculate pairwise direct (unsimplified) debts
+        // Direct (unsimplified) debts: each debtor owes each payer in proportion to what that payer paid.
         Map<String, Long> pairwiseDebts = new HashMap<>();
-        List<Expense> expenses = expenseRepository.findAllActiveByGroup(group);
-
-        for (Expense expense : expenses) {
-            if (expense.isPayment()) continue;
+        for (Expense expense : expenseRepository.findActiveByGroupId(groupId)) {
             long totalCost = expense.getCostCents();
             if (totalCost <= 0) continue;
-
             for (ExpensePayer payer : expense.getPayers()) {
                 UUID payerId = payer.getUser().getId();
-                long paid = payer.getPaidCents();
-                if (paid <= 0) continue;
-
-                double payerContributionRatio = (double) paid / totalCost;
-
+                userNames.putIfAbsent(payerId, payer.getUser().getFullName());
+                if (payer.getPaidCents() <= 0) continue;
                 for (ExpenseSplit split : expense.getSplits()) {
                     UUID debtorId = split.getUser().getId();
+                    userNames.putIfAbsent(debtorId, split.getUser().getFullName());
                     if (debtorId.equals(payerId)) continue;
-
-                    long splitOwed = split.getOwedCents();
-                    long debtorShareToThisPayer = Math.round(splitOwed * payerContributionRatio);
-
-                    if (debtorShareToThisPayer > 0) {
-                        String key = debtorId + "->" + payerId;
-                        pairwiseDebts.put(key, pairwiseDebts.getOrDefault(key, 0L) + debtorShareToThisPayer);
+                    long share = Math.round((double) split.getOwedCents() * payer.getPaidCents() / totalCost);
+                    if (share > 0) {
+                        pairwiseDebts.merge(debtorId + "->" + payerId, share, Long::sum);
                     }
                 }
             }
         }
-
-        // Account for settlements in pairwise debts
-        List<Settlement> settlements = settlementRepository.findAllByGroupOrderByDateDesc(group);
-        for (Settlement settlement : settlements) {
-            UUID payerId = settlement.getPayer().getId();
-            UUID payeeId = settlement.getPayee().getId();
-            String key = payerId + "->" + payeeId;
-            long current = pairwiseDebts.getOrDefault(key, 0L);
-            pairwiseDebts.put(key, Math.max(0L, current - settlement.getAmountCents()));
+        for (Settlement settlement : settlementRepository.findByGroupId(groupId)) {
+            // A payment from payer to payee reduces what payer owes payee (or creates a reverse debt).
+            pairwiseDebts.merge(settlement.getPayee().getId() + "->" + settlement.getPayer().getId(),
+                settlement.getAmountCents(), Long::sum);
         }
 
-        String groupCurrency = (group.getCurrencyCode() != null && !group.getCurrencyCode().isBlank())
-            ? group.getCurrencyCode() : CurrencyUtil.DEFAULT_CURRENCY;
+        List<DebtRepaymentDto> originalDebts = toDtos(debtSimplificationService.computePairwiseDebts(pairwiseDebts, currency), userNames);
+        List<DebtRepaymentDto> simplifiedDebts = toDtos(debtSimplificationService.simplifyNetBalances(netBalances, currency), userNames);
 
-        List<DebtSimplificationService.DebtRepayment> rawOriginal =
-            debtSimplificationService.computePairwiseDebts(pairwiseDebts, groupCurrency);
-
-        List<DebtSimplificationService.DebtRepayment> rawSimplified =
-            debtSimplificationService.simplifyNetBalances(netBalances, groupCurrency);
-
-        List<DebtRepaymentDto> originalDebts = rawOriginal.stream()
-            .map(d -> new DebtRepaymentDto(
-                d.fromUserId(),
-                userNames.getOrDefault(d.fromUserId(), "Unknown"),
-                d.toUserId(),
-                userNames.getOrDefault(d.toUserId(), "Unknown"),
-                d.amountCents(),
-                CurrencyUtil.formatCents(d.amountCents(), d.currencyCode()),
-                d.currencyCode()
-            ))
-            .toList();
-
-        List<DebtRepaymentDto> simplifiedDebts = rawSimplified.stream()
-            .map(d -> new DebtRepaymentDto(
-                d.fromUserId(),
-                userNames.getOrDefault(d.fromUserId(), "Unknown"),
-                d.toUserId(),
-                userNames.getOrDefault(d.toUserId(), "Unknown"),
-                d.amountCents(),
-                CurrencyUtil.formatCents(d.amountCents(), d.currencyCode()),
-                d.currencyCode()
-            ))
-            .toList();
-
-        int savedTransactions = Math.max(0, originalDebts.size() - simplifiedDebts.size());
-
-        Map<UUID, String> formattedNet = new HashMap<>();
-        for (Map.Entry<UUID, Long> entry : netBalances.entrySet()) {
-            long bal = entry.getValue();
-            String f = CurrencyUtil.formatCents(bal, groupCurrency);
-            formattedNet.put(entry.getKey(), f);
-        }
+        Map<UUID, String> formattedNet = new LinkedHashMap<>();
+        netBalances.forEach((userId, cents) -> formattedNet.put(userId, CurrencyUtil.formatCents(cents, currency)));
 
         return new GroupBalanceSummaryDto(
             group.getId(),
@@ -180,9 +135,24 @@ public class BalanceService {
             group.isSimplifyByDefault(),
             simplifiedDebts,
             originalDebts,
-            savedTransactions,
+            Math.max(0, originalDebts.size() - simplifiedDebts.size()),
             netBalances,
             formattedNet
         );
+    }
+
+    private static List<DebtRepaymentDto> toDtos(List<DebtSimplificationService.DebtRepayment> debts, Map<UUID, String> names) {
+        return debts.stream()
+            .map(d -> new DebtRepaymentDto(
+                d.fromUserId(),
+                names.getOrDefault(d.fromUserId(), "Former member"),
+                d.toUserId(),
+                names.getOrDefault(d.toUserId(), "Former member"),
+                d.amountCents(),
+                CurrencyUtil.formatCents(d.amountCents(), d.currencyCode()),
+                d.currencyCode()
+            ))
+            .sorted(Comparator.comparing(DebtRepaymentDto::amountCents).reversed())
+            .toList();
     }
 }
