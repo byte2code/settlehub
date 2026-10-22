@@ -18,6 +18,7 @@
 - [What's new in 3.0](#-whats-new-in-30)
 - [Features](#-features)
 - [Architecture](#️-architecture)
+- [How it works: key workflows](#-how-it-works-key-workflows)
 - [Maths](#-maths)
 - [Mobile apps](#-mobile-apps)
 - [Free deployment ($0/month)](#-free-deployment-0month)
@@ -69,6 +70,23 @@ The full audit and plan are in [`docs/settlehub_3.0_plan.md`](docs/settlehub_3.0
 | **Activity** | A feed of who added, edited or settled what. |
 | **Apps** | Installable PWA (iOS/Android/desktop) and an Android APK with hardware back button support. |
 
+### 3.0 feature tour
+
+| Feature | Where in the app | How it works |
+| :--- | :--- | :--- |
+| Private groups | Everywhere | Every request checks membership; non-members get 404 ([pipeline](docs/architecture.md#2-backend-request-pipeline)) |
+| Live sync | Group page, **live** chip | Authenticated WebSocket; events sent after the database commit ([flow](docs/architecture.md#5-live-updates-between-members)) |
+| Settle from a debt | Balances card → **Settle** | Prefilled amount, UPI pay link, undo from **Payments** ([flow](docs/architecture.md#6-settle-up-upi-and-undo)) |
+| Activity feed | **Activity** tab | 15 event types incl. edits with old → new amount ([list](docs/architecture.md#15-activity-feed-events)) |
+| Invites & claiming | **Invite**, `/join/CODE` | Code, link or email; people added by email keep their balances when they sign up ([flow](docs/architecture.md#7-invites-joining-and-claiming-an-account)) |
+| Member management | **Settings** | Promote/demote admins, remove settled members, leave, reset invite code |
+| Foreign currency | Expense form currency picker | Live ECB rate or typed rate; original amount kept ([flow](docs/architecture.md#8-foreign-currency-expenses)) |
+| Profile & UPI | Avatar → **Profile** | Name, default currency, UPI ID, change password |
+| Receipts | Expense form → photo | Compressed in the browser, stored separately, loaded on demand ([flow](docs/architecture.md#9-receipts)) |
+| Exports | **Share** | WhatsApp text, Excel workbook, CSV (formula-injection safe) |
+| Themes & PWA | Sun/moon button, install prompt | Light / dark / system; offline shell with “update available” prompt |
+| Fast wake-up | “Waking the server” banner | Health polling + CDS-trained JVM image ([flow](docs/architecture.md#11-waking-the-free-backend)) |
+
 ---
 
 ## 🏗️ Architecture
@@ -102,7 +120,7 @@ flowchart TD
 | Database | PostgreSQL on Neon; Flyway migrations; in-memory H2 for local development and tests |
 | Real time | Spring's built-in STOMP broker, JWT-authenticated, per-group topics |
 | Frontend | React 19, TypeScript, Vite, Tailwind CSS v4, React Router, TanStack Query |
-| PWA | `vite-plugin-pwa` (Workbox), network-first navigation, update prompt |
+| PWA | `vite-plugin-pwa` (Workbox): precached app shell, API never cached, update prompt |
 | Mobile | Capacitor 8 (Android) |
 | Tests | JUnit + MockMvc (backend), Vitest (frontend), both in CI |
 
@@ -123,7 +141,65 @@ settlehub/
 │   ├── src/hooks/              # queries (TanStack Query), live socket, auth, theme
 │   ├── src/lib/                # api, money, quick-entry parser, fx, upi, csv
 │   └── android/                # Capacitor Android project
-└── docs/                       # 3.0 plan, deployment runbook, handoff notes
+└── docs/                       # architecture & workflows, 3.0 plan, deployment runbook, handoff notes
+```
+
+---
+
+## 🔁 How it works: key workflows
+
+Full set of diagrams (data model, invites, receipts, Docker image, database upgrade, …): **[docs/architecture.md](docs/architecture.md)**.
+
+### Live updates between members
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant A as Alice's app
+    participant API as Spring Boot
+    participant DB as PostgreSQL
+    participant B as Bob's app
+    B->>API: WebSocket CONNECT with JWT, SUBSCRIBE /topic/groups/{id}
+    Note over API: token and membership checked
+    A->>API: POST /groups/{id}/expenses
+    API->>DB: save expense, splits, activity
+    DB-->>API: commit
+    API-->>B: EXPENSE_CREATED (only after commit)
+    B->>API: refetch group, expenses, balances
+    API-->>B: fresh data, no page refresh
+```
+
+### From expense to “who owes whom”
+
+```mermaid
+flowchart LR
+    E["Expense<br/>EQUAL · EXACT · PERCENT"] --> S["Splits in whole cents<br/>always add up exactly"]
+    S --> N["Net balance per member<br/>paid − owed ± payments"]
+    N --> D["Direct debts"]
+    N --> H["Simplified debts<br/>two max-heaps, ≤ N−1 payments"]
+    D & H --> UI["Balances card<br/>Simplify toggle"]
+```
+
+### Settle up
+
+```mermaid
+flowchart LR
+    DEBT["You owe Priya ₹239.28"] -->|Settle| FORM["Prefilled form"]
+    FORM -->|"INR + payee has UPI ID"| UPI["upi://pay link<br/>opens GPay / PhonePe"]
+    FORM -->|Record payment| POST["POST /settlements"]
+    UPI --> POST
+    POST --> LIVE["Everyone's balances update live"]
+    LIVE -->|"Payments tab → Undo"| DEL["DELETE /settlements/{id}"]
+```
+
+### Build, test and release
+
+```mermaid
+flowchart LR
+    PR["Push / PR"] --> CI["CI: mvn verify<br/>lint · Vitest · build"]
+    MAIN["Merge to main"] --> RENDER["Render deploys backend"]
+    MAIN --> PAGES["Cloudflare Pages deploys web app"]
+    TAG["Tag v*"] --> APK["Build APK → GitHub Release"]
 ```
 
 ---
