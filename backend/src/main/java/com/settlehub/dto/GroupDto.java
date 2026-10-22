@@ -20,14 +20,14 @@ public record GroupDto(
     Instant updatedAt,
     List<GroupMemberDto> members,
     Long userNetBalanceCents,
-    String userNetBalanceFormatted
+    String userNetBalanceFormatted,
+    long totalSpendCents,
+    String totalSpendFormatted,
+    String myRole
 ) {
-    public static GroupDto fromEntity(Group group, List<GroupMemberDto> members, Long userNetBalanceCents) {
-        long bal = userNetBalanceCents != null ? userNetBalanceCents : 0L;
-        String currency = group.getCurrencyCode() != null ? group.getCurrencyCode() : CurrencyUtil.DEFAULT_CURRENCY;
-        String formatted = CurrencyUtil.formatCents(bal, currency);
-        String formattedBudget = group.getBudgetCents() != null ? CurrencyUtil.formatCents(group.getBudgetCents(), currency) : null;
-
+    public static GroupDto fromEntity(Group group, List<GroupMemberDto> members, long userNetBalanceCents,
+                                      long totalSpendCents, String myRole) {
+        String currency = currencyOf(group);
         return new GroupDto(
             group.getId(),
             group.getName(),
@@ -37,12 +37,19 @@ public record GroupDto(
             group.getInviteCode(),
             group.isArchived(),
             group.getBudgetCents(),
-            formattedBudget,
+            group.getBudgetCents() != null ? CurrencyUtil.formatCents(group.getBudgetCents(), currency) : null,
             group.getCreatedAt(),
             group.getUpdatedAt(),
             members,
-            bal,
-            formatted
+            userNetBalanceCents,
+            CurrencyUtil.formatCents(userNetBalanceCents, currency),
+            totalSpendCents,
+            CurrencyUtil.formatCents(totalSpendCents, currency),
+            myRole
         );
+    }
+
+    public static String currencyOf(Group group) {
+        return group.getCurrencyCode() != null ? group.getCurrencyCode() : CurrencyUtil.DEFAULT_CURRENCY;
     }
 }

@@ -43,8 +43,18 @@ public class Expense {
     @Column(name = "category")
     private String category = "OTHER"; // "FOOD", "TRANSPORT", "STAY", "ENTERTAINMENT", "SHOPPING", "OTHER"
 
-    @Column(name = "receipt_url", columnDefinition = "TEXT")
-    private String receiptUrl;
+    @Column(length = 500)
+    private String notes;
+
+    /** When entered in a foreign currency: the amount as paid; costCents holds the group-currency value. */
+    @Column(name = "original_currency", length = 3)
+    private String originalCurrency;
+
+    @Column(name = "original_amount_cents")
+    private Long originalAmountCents;
+
+    @Column(name = "has_receipt", nullable = false)
+    private boolean hasReceipt = false;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by_id")
@@ -112,8 +122,17 @@ public class Expense {
     public String getCategory() { return category != null ? category : "OTHER"; }
     public void setCategory(String category) { this.category = category != null ? category.trim().toUpperCase() : "OTHER"; }
 
-    public String getReceiptUrl() { return receiptUrl; }
-    public void setReceiptUrl(String receiptUrl) { this.receiptUrl = receiptUrl; }
+    public String getNotes() { return notes; }
+    public void setNotes(String notes) { this.notes = notes; }
+
+    public String getOriginalCurrency() { return originalCurrency; }
+    public void setOriginalCurrency(String originalCurrency) { this.originalCurrency = originalCurrency; }
+
+    public Long getOriginalAmountCents() { return originalAmountCents; }
+    public void setOriginalAmountCents(Long originalAmountCents) { this.originalAmountCents = originalAmountCents; }
+
+    public boolean hasReceipt() { return hasReceipt; }
+    public void setHasReceipt(boolean hasReceipt) { this.hasReceipt = hasReceipt; }
 
     public User getCreatedBy() { return createdBy; }
     public void setCreatedBy(User createdBy) { this.createdBy = createdBy; }

@@ -14,9 +14,7 @@ public class EqualSplitStrategy implements SplitStrategy {
 
     @Override
     public Map<UUID, Long> calculateSplits(Long totalCostCents, List<UUID> participantIds, Map<UUID, ?> params) {
-        if (participantIds == null || participantIds.isEmpty()) {
-            throw new IllegalArgumentException("Participant list cannot be empty for equal split.");
-        }
+        SplitStrategy.requireDistinctParticipants(participantIds);
         if (totalCostCents == null || totalCostCents < 0) {
             throw new IllegalArgumentException("Total cost must be non-negative.");
         }

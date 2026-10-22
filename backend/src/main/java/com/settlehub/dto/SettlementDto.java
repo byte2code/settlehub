@@ -1,6 +1,7 @@
 package com.settlehub.dto;
 
 import com.settlehub.model.Settlement;
+import com.settlehub.util.CurrencyUtil;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -15,10 +16,11 @@ public record SettlementDto(
     String amountFormatted,
     String currencyCode,
     Instant date,
-    Instant createdAt
+    Instant createdAt,
+    String note,
+    String createdByName
 ) {
     public static SettlementDto fromEntity(Settlement s) {
-        String formatted = com.settlehub.util.CurrencyUtil.formatCents(s.getAmountCents(), s.getCurrencyCode());
         return new SettlementDto(
             s.getId(),
             s.getGroup() != null ? s.getGroup().getId() : null,
@@ -27,10 +29,12 @@ public record SettlementDto(
             s.getPayee().getId(),
             s.getPayee().getFullName(),
             s.getAmountCents(),
-            formatted,
+            CurrencyUtil.formatCents(s.getAmountCents(), s.getCurrencyCode()),
             s.getCurrencyCode(),
             s.getDate(),
-            s.getCreatedAt()
+            s.getCreatedAt(),
+            s.getNote(),
+            s.getCreatedBy() != null ? s.getCreatedBy().getFullName() : null
         );
     }
 }

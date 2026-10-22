@@ -6,27 +6,27 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.3.4</version>
+        <version>4.1.2</version>
         <relativePath/>
     </parent>
 
     <groupId>com.settlehub</groupId>
     <artifactId>settlehub-backend</artifactId>
-    <version>1.0.0</version>
+    <version>3.0.0</version>
     <name>settlehub-backend</name>
     <description>SettleHub Expense Sharing &amp; Debt Minimization Platform</description>
 
     <properties>
         <java.version>21</java.version>
-        <maven.compiler.release>21</maven.compiler.release>
         <jjwt.version>0.12.6</jjwt.version>
+        <poi.version>5.4.1</poi.version>
     </properties>
 
     <dependencies>
         <!-- Spring Boot Starters -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -45,15 +45,29 @@
             <artifactId>spring-boot-starter-websocket</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-messaging</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
+        <!-- Schema migrations -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-flyway</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
         </dependency>
 
         <!-- Apache POI for Free Excel Export -->
         <dependency>
             <groupId>org.apache.poi</groupId>
             <artifactId>poi-ooxml</artifactId>
-            <version>5.3.0</version>
+            <version>${poi.version}</version>
         </dependency>
 
         <!-- Database Drivers -->
@@ -68,7 +82,7 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- JWT (jjwt 0.12.6) -->
+        <!-- JWT -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-api</artifactId>
@@ -94,8 +108,13 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>org.springframework.security</groupId>
-            <artifactId>spring-security-test</artifactId>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security-test</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -107,10 +126,13 @@
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
             <plugin>
+                <!-- Tests always use in-memory H2: never a DATABASE_URL from the shell or a local .env file -->
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
+                <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
-                    <release>21</release>
+                    <systemPropertyVariables>
+                        <app.database-url.enabled>false</app.database-url.enabled>
+                    </systemPropertyVariables>
                 </configuration>
             </plugin>
         </plugins>

@@ -1,118 +1,107 @@
 package com.settlehub;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.settlehub.dto.*;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
+import tools.jackson.databind.JsonNode;
 
-import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest
-@AutoConfigureMockMvc
-class SettleHubIntegrationTest {
-
-    @Autowired
-    private MockMvc mockMvc;
-
-    @Autowired
-    private ObjectMapper objectMapper;
+class SettleHubIntegrationTest extends ApiTestSupport {
 
     @Test
-    @DisplayName("Full workflow: Register, login, create group, add expense, check simplified balances")
-    void testEndToEndWorkflow() throws Exception {
-        String uniqueSuffix = UUID.randomUUID().toString().substring(0, 8);
-        String emailAlice = "alice_" + uniqueSuffix + "@example.com";
-        String emailBob = "bob_" + uniqueSuffix + "@example.com";
+    @DisplayName("Full workflow: register, login, create group, add expense, check simplified balances")
+    void endToEndWorkflow() throws Exception {
+        TestUser alice = register("Alice");
+        TestUser bob = register("Bob");
 
-        // 1. Register Alice
-        RegisterRequest registerReq = new RegisterRequest(emailAlice, "password123", "Alice", "Tester", "USD");
-        mockMvc.perform(post("/api/v1/auth/register")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(registerReq)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.token").exists())
-                .andExpect(jsonPath("$.user.email").value(emailAlice));
+        perform(post("/api/v1/auth/login"), null, Map.of("email", alice.email(), "password", "password123"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.token").exists())
+            .andExpect(jsonPath("$.user.email").value(alice.email()));
 
-        // 2. Login Alice
-        LoginRequest loginReq = new LoginRequest(emailAlice, "password123");
-        MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(loginReq)))
-                .andExpect(status().isOk())
-                .andReturn();
+        UUID groupId = createGroup(alice, "Road Trip 2026", List.of(bob.email()));
+        addEqualExpense(alice, groupId, 6000, alice, bob);
 
-        AuthResponse auth = objectMapper.readValue(loginResult.getResponse().getContentAsString(), AuthResponse.class);
-        String token = auth.token();
-        UUID aliceId = auth.user().id();
+        JsonNode summary = json(perform(get("/api/v1/groups/" + groupId + "/balances"), alice, null).andExpect(status().isOk()));
+        JsonNode debts = summary.get("simplifiedDebts");
+        assertEquals(1, debts.size());
+        assertEquals(bob.id().toString(), debts.get(0).get("fromUserId").asString(), "Bob owes Alice");
+        assertEquals(alice.id().toString(), debts.get(0).get("toUserId").asString());
+        assertEquals(3000L, debts.get(0).get("amountCents").asLong());
 
-        // 3. Register Bob
-        RegisterRequest registerBob = new RegisterRequest(emailBob, "password123", "Bob", "Builder", "USD");
-        MvcResult bobResult = mockMvc.perform(post("/api/v1/auth/register")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(registerBob)))
-                .andExpect(status().isCreated())
-                .andReturn();
-        AuthResponse authBob = objectMapper.readValue(bobResult.getResponse().getContentAsString(), AuthResponse.class);
-        UUID bobId = authBob.user().id();
+        JsonNode groups = json(perform(get("/api/v1/groups"), bob, null).andExpect(status().isOk()));
+        assertEquals(1, groups.size());
+        assertEquals(-3000L, groups.get(0).get("userNetBalanceCents").asLong());
+        assertEquals(6000L, groups.get(0).get("totalSpendCents").asLong());
+        assertEquals("MEMBER", groups.get(0).get("myRole").asString());
+    }
 
-        // 4. Create Group with Alice and Bob
-        CreateGroupRequest groupReq = new CreateGroupRequest("Road Trip 2026", "trip", true, List.of(emailBob));
-        MvcResult groupResult = mockMvc.perform(post("/api/v1/groups")
-                .header("Authorization", "Bearer " + token)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(groupReq)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.name").value("Road Trip 2026"))
-                .andReturn();
+    @Test
+    @DisplayName("Bad credentials return 401 (not 500) and unauthenticated calls return 401")
+    void authErrors() throws Exception {
+        TestUser alice = register("Alice");
+        perform(post("/api/v1/auth/login"), null, Map.of("email", alice.email(), "password", "wrong-password"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.message").value("Invalid email or password"));
+        perform(get("/api/v1/groups"), null, null).andExpect(status().isUnauthorized());
+        perform(get("/api/v1/groups"), new TestUser(alice.id(), alice.email(), "not-a-jwt"), null)
+            .andExpect(status().isUnauthorized());
+    }
 
-        GroupDto group = objectMapper.readValue(groupResult.getResponse().getContentAsString(), GroupDto.class);
-        UUID groupId = group.id();
-        assertEquals(2, group.members().size());
+    @Test
+    @DisplayName("Registering an existing email is a 409; short passwords are rejected")
+    void registrationRules() throws Exception {
+        TestUser alice = register("Alice");
+        perform(post("/api/v1/auth/register"), null,
+            Map.of("email", alice.email(), "password", "password123", "firstName", "Again"))
+            .andExpect(status().isConflict());
+        perform(post("/api/v1/auth/register"), null,
+            Map.of("email", "short@example.com", "password", "1234567", "firstName", "Short"))
+            .andExpect(status().isBadRequest());
+    }
 
-        // 5. Add Expense: Alice pays $60.00 split equally between Alice and Bob
-        CreateExpenseRequest.SplitRequest s1 = new CreateExpenseRequest.SplitRequest(aliceId, null, null);
-        CreateExpenseRequest.SplitRequest s2 = new CreateExpenseRequest.SplitRequest(bobId, null, null);
-        CreateExpenseRequest expenseReq = new CreateExpenseRequest(
-            "Gasoline",
-            6000L,
-            "USD",
-            Instant.now(),
-            "EQUAL",
-            null, // Default payer is Alice
-            List.of(s1, s2)
-        );
+    @Test
+    @DisplayName("Someone added by email can sign up later and claims the placeholder account")
+    void placeholderAccountIsClaimedOnRegister() throws Exception {
+        TestUser alice = register("Alice");
+        String carolEmail = "carol_" + UUID.randomUUID().toString().substring(0, 8) + "@example.com";
+        UUID groupId = createGroup(alice, "Flat", List.of(carolEmail));
 
-        mockMvc.perform(post("/api/v1/groups/" + groupId + "/expenses")
-                .header("Authorization", "Bearer " + token)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(expenseReq)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.costCents").value(6000))
-                .andExpect(jsonPath("$.description").value("Gasoline"));
+        // Placeholder cannot log in
+        perform(post("/api/v1/auth/login"), null, Map.of("email", carolEmail, "password", ""))
+            .andExpect(status().isBadRequest());
 
-        // 6. Check Balances
-        MvcResult balanceResult = mockMvc.perform(get("/api/v1/groups/" + groupId + "/balances")
-                .header("Authorization", "Bearer " + token))
-                .andExpect(status().isOk())
-                .andReturn();
+        TestUser carol = register("Carol", carolEmail);
+        JsonNode groups = json(perform(get("/api/v1/groups"), carol, null).andExpect(status().isOk()));
+        assertEquals(1, groups.size());
+        assertEquals(groupId.toString(), groups.get(0).get("id").asString());
+        perform(post("/api/v1/auth/login"), null, Map.of("email", carolEmail, "password", "password123"))
+            .andExpect(status().isOk());
+    }
 
-        GroupBalanceSummaryDto summary = objectMapper.readValue(balanceResult.getResponse().getContentAsString(), GroupBalanceSummaryDto.class);
-        assertEquals(1, summary.simplifiedDebts().size());
-        DebtRepaymentDto debt = summary.simplifiedDebts().get(0);
-        assertEquals(bobId, debt.fromUserId(), "Bob owes Alice");
-        assertEquals(aliceId, debt.toUserId());
-        assertEquals(3000L, debt.amountCents(), "Bob owes $30.00");
+    @Test
+    @DisplayName("Profile update and password change")
+    void profileAndPassword() throws Exception {
+        TestUser alice = register("Alice");
+        perform(patch("/api/v1/auth/me"), alice, Map.of("firstName", "Alicia", "upiId", "alicia@okhdfc", "currencyCode", "usd"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.firstName").value("Alicia"))
+            .andExpect(jsonPath("$.upiId").value("alicia@okhdfc"))
+            .andExpect(jsonPath("$.currencyCode").value("USD"));
+        perform(patch("/api/v1/auth/me"), alice, Map.of("upiId", "not a upi"))
+            .andExpect(status().isBadRequest());
+
+        perform(post("/api/v1/auth/me/password"), alice, Map.of("currentPassword", "wrong", "newPassword", "newpassword1"))
+            .andExpect(status().isBadRequest());
+        perform(post("/api/v1/auth/me/password"), alice, Map.of("currentPassword", "password123", "newPassword", "newpassword1"))
+            .andExpect(status().isNoContent());
+        perform(post("/api/v1/auth/login"), null, Map.of("email", alice.email(), "password", "newpassword1"))
+            .andExpect(status().isOk());
     }
 }

@@ -7,8 +7,9 @@ android {
         applicationId "com.settlehub.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // CI passes these from the release tag (see .github/workflows/release-apk.yml)
+        versionCode((project.findProperty('settlehubVersionCode') ?: '1') as Integer)
+        versionName((project.findProperty('settlehubVersionName') ?: '3.0.0') as String)
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +17,24 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Release signing key, supplied by CI from repository secrets. Every release must be
+    // signed with the same key, or phones refuse to install it over the previous version.
+    def keystoreFile = System.getenv('SETTLEHUB_KEYSTORE_FILE')
+    signingConfigs {
+        if (keystoreFile) {
+            release {
+                storeFile file(keystoreFile)
+                storePassword System.getenv('SETTLEHUB_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('SETTLEHUB_KEY_ALIAS')
+                keyPassword System.getenv('SETTLEHUB_KEY_PASSWORD')
+            }
+        }
+    }
     buildTypes {
         release {
+            if (keystoreFile) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

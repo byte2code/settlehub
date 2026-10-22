@@ -35,7 +35,6 @@ build/
 **/android/local.properties
 **/android/.idea/
 *.apk
-!SettleHub.apk
 *.aab
 
 # IDE
@@ -50,3 +49,4 @@ build/
 .env.local
 .env.production.local
 .neon
+!**/gradle/wrapper/gradle-wrapper.jar

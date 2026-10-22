@@ -13,14 +13,12 @@ public record GroupMemberDto(
     String role,
     Instant joinedAt,
     Long netBalanceCents,
-    String netBalanceFormatted
+    String netBalanceFormatted,
+    boolean placeholder,
+    String upiId
 ) {
-    public static GroupMemberDto fromEntity(GroupMember member, Long netBalanceCents) {
+    public static GroupMemberDto fromEntity(GroupMember member, String currency, Long netBalanceCents) {
         long bal = netBalanceCents != null ? netBalanceCents : 0L;
-        String currency = (member.getGroup() != null && member.getGroup().getCurrencyCode() != null)
-            ? member.getGroup().getCurrencyCode() : CurrencyUtil.DEFAULT_CURRENCY;
-        String formatted = CurrencyUtil.formatCents(bal, currency);
-
         return new GroupMemberDto(
             member.getId(),
             member.getUser().getId(),
@@ -29,7 +27,9 @@ public record GroupMemberDto(
             member.getRole(),
             member.getJoinedAt(),
             bal,
-            formatted
+            CurrencyUtil.formatCents(bal, currency),
+            member.getUser().isPlaceholder(),
+            member.getUser().getUpiId()
         );
     }
 }

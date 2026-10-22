@@ -1,3 +1,10 @@
+# Render Blueprint for the SettleHub backend (free plan).
+#
+# The database is Neon's free tier rather than Render Postgres: Render's free database is
+# deleted after 30 days, Neon's is not, and Neon scales to zero between requests.
+# When creating the Blueprint, Render asks for DATABASE_URL: paste the Neon connection
+# string (postgresql://user:pass@host/db?sslmode=require). Flyway creates or upgrades the
+# schema on start.
 services:
   - type: web
     name: settlehub-backend
@@ -5,17 +12,13 @@ services:
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
     plan: free
+    # Liveness only: does not touch the database, so health checks never wake Neon
     healthCheckPath: /api/v1/health
     envVars:
       - key: DATABASE_URL
-        fromDatabase:
-          name: settlehub-db
-          property: connectionString
+        sync: false
+      # Generated once and kept across deploys, so existing logins stay valid
       - key: JWT_SECRET
         generateValue: true
-
-databases:
-  - name: settlehub-db
-    plan: free
-    databaseName: settlehub
-    user: settlehub
+      # Optional, set in the dashboard: APP_CORS_ALLOWED_ORIGINS for a custom frontend domain.
+      # Leave it unset otherwise; the default allows *.pages.dev, localhost and the Android app.

@@ -3,30 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>SettleHub - Group Expense Tracker</title>
-
-    <!-- PWA & Mobile Web App Meta Tags -->
-    <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#10b981" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="Split trip and flat expenses with friends. Exact to the paisa, settled in the fewest payments. Free." />
+    <title>SettleHub — split group expenses</title>
+    <meta name="theme-color" content="#090d16" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="SettleHub" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then(reg => console.log('SettleHub PWA ServiceWorker active:', reg.scope))
-            .catch(err => console.log('PWA ServiceWorker error:', err));
-        });
-      }
-    </script>
   </head>
-  <body class="bg-slate-950 text-slate-100 antialiased selection:bg-emerald-500 selection:text-white">
+  <body>
     <div id="root"></div>
+    <noscript>SettleHub needs JavaScript enabled.</noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

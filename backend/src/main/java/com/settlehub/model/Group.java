@@ -29,7 +29,7 @@ public class Group {
     @Column(unique = true, length = 16)
     private String inviteCode;
 
-    @Column(name = "archived")
+    @Column(name = "archived", nullable = false)
     private boolean archived = false;
 
     @Column(name = "budget_cents")

@@ -1,0 +1,25 @@
+name: Keep backend warm
+
+# Optional. Render's free plan sleeps a service after 15 idle minutes, and waking it
+# takes a while. This pings the liveness endpoint every 10 minutes so it stays awake.
+#
+# Off until you set the repository variable SETTLEHUB_BACKEND_URL
+# (e.g. https://settlehub-backend.onrender.com).
+#
+# - /api/v1/health never touches the database, so Neon can still scale to zero.
+# - One always-on service uses ~744 of Render's 750 free hours a month, so only do
+#   this if it is your only free Render service.
+# - Scheduled runs are free on public repositories; on a private one they would use
+#   about 4,300 of the 2,000 free Actions minutes a month, so leave it off there.
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    if: vars.SETTLEHUB_BACKEND_URL != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - run: curl -fsS --max-time 120 --retry 2 "${{ vars.SETTLEHUB_BACKEND_URL }}/api/v1/health"

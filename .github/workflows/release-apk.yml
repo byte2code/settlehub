@@ -1,0 +1,90 @@
+name: Release APK
+
+# Push a tag like v3.0.0 to build the Android app and publish it as a GitHub Release.
+# Needs the repository variable SETTLEHUB_API_URL (Settings → Secrets and variables →
+# Actions → Variables), e.g. https://settlehub-backend.onrender.com/api/v1
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to build and release (e.g. v3.0.0)
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Check the backend URL is configured
+        env:
+          VITE_API_URL: ${{ vars.SETTLEHUB_API_URL }}
+        run: |
+          if [ -z "$VITE_API_URL" ]; then
+            echo "::error::Set the repository variable SETTLEHUB_API_URL to the backend's /api/v1 URL"
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Build web app and sync it into the Android project
+        working-directory: frontend
+        env:
+          VITE_API_URL: ${{ vars.SETTLEHUB_API_URL }}
+          VITE_PUBLIC_WEB_URL: ${{ vars.SETTLEHUB_WEB_URL }}
+        run: |
+          npm ci
+          npm run build
+          npx cap sync android
+
+      # Phones only install an update signed with the same key as the installed app.
+      # With the ANDROID_KEYSTORE_* secrets set, the APK is release-signed with your key.
+      # Without them it falls back to a debug key that changes on every run, so users
+      # have to uninstall before installing each new version. See docs/deployment.md.
+      - name: Build APK
+        working-directory: frontend/android
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          SETTLEHUB_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          SETTLEHUB_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          SETTLEHUB_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          VERSION_ARGS="-PsettlehubVersionName=${TAG#v} -PsettlehubVersionCode=${{ github.run_number }}"
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            export SETTLEHUB_KEYSTORE_FILE="$RUNNER_TEMP/release.jks"
+            ./gradlew assembleRelease --no-daemon $VERSION_ARGS
+            cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/SettleHub.apk"
+          else
+            echo "::warning::ANDROID_KEYSTORE_BASE64 is not set; publishing a debug-signed APK"
+            ./gradlew assembleDebug --no-daemon $VERSION_ARGS
+            cp app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/SettleHub.apk"
+          fi
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" SettleHub.apk --clobber
+          else
+            gh release create "$TAG" SettleHub.apk --title "SettleHub $TAG" --generate-notes
+          fi

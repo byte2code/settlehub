@@ -1,159 +1,154 @@
-# SettleHub Free-Tier Deployment Runbook
+# SettleHub 3.0 deployment runbook ($0/month)
 
-This guide details the step-by-step procedure to deploy the SettleHub platform for free on **Render.com** (Spring Boot 3 + PostgreSQL) and **Cloudflare Pages** (React 18 SPA).
+```
+Browser / PWA ──► Cloudflare Pages (static SPA)
+      │
+      └──────────┐
+Android APK ─────┴─► Render free web service (Spring Boot, Docker) ──► Neon PostgreSQL
+                          ▲
+GitHub Actions ───────────┘  CI on push/PR · APK release on v* tags · optional keep-warm ping
+```
+
+| Piece | Free allowance | Notes |
+| --- | --- | --- |
+| Render web service | 512 MB, 0.1 CPU, 750 h/month | Sleeps after 15 idle minutes; the first request wakes it |
+| Neon | 0.5 GB storage, scale-to-zero | Not deleted after 30 days (Render's free Postgres is) |
+| Cloudflare Pages | Unlimited static bandwidth, 500 builds/month | |
+| GitHub Actions | Free on public repositories | |
 
 ---
 
-## Architecture Topology
+## 1. Database: Neon
 
-```
-   ┌─────────────────────────────────────────────────────────┐
-   │                  Cloudflare Pages Edge                  │
-   │               Static SPA (React 18 + Vite)              │
-   │              Global CDN / Free SSL / HTTP/3             │
-   └────────────────────────────┬────────────────────────────┘
-                                │ HTTPS Requests (/api/v1/*)
-                                ▼
-   ┌─────────────────────────────────────────────────────────┐
-   │                     Render.com Web                      │
-   │        Spring Boot 3.3.x (Java 21 Virtual Threads)      │
-   │           512MB Free Container (Docker Image)           │
-   │            Tuned JVM: -XX:MaxRAMPercentage=75.0         │
-   └────────────────────────────┬────────────────────────────┘
-                                │ JDBC over TLS (sslmode=require)
-                                ▼
-   ┌─────────────────────────────────────────────────────────┐
-   │               PostgreSQL Managed Database               │
-   │            Render.com or Neon.tech Free Tier            │
-   └─────────────────────────────────────────────────────────┘
-```
+1. Create a project at [console.neon.tech](https://console.neon.tech) (pick the region closest to your Render region).
+2. **Connect** → copy the connection string: `postgresql://user:password@ep-….neon.tech/neondb?sslmode=require`.
+   Either the pooled or the direct string works; the app keeps no idle connections, so Neon can suspend.
 
----
+You do not create any tables: Flyway creates the schema on the first start.
 
-## 1. Database Provisioning (Render or Neon)
+### Moving existing data from Render Postgres (2.0 deployments)
 
-### Option A: Render Managed PostgreSQL
-1. Log in to [Render Dashboard](https://dashboard.render.com).
-2. Click **New +** -> **PostgreSQL**.
-3. Configure settings:
-   - **Name**: `settlehub-db`
-   - **Database**: `settlehub`
-   - **User**: `settlehub_user`
-   - **Region**: Choose the region closest to you (e.g. Frankfurt or Oregon).
-   - **Plan**: **Free** (1GB storage, 100 connections).
-4. Click **Create Database**.
-5. Once provisioned, copy the **Internal Database URL** (or External Database URL).
-
-### Option B: Neon.tech Serverless PostgreSQL
-1. Create a free project on [Neon.tech](https://neon.tech).
-2. Copy the pooled connection string: `postgres://<user>:<password>@<endpoint>.neon.tech/neondb?sslmode=require`.
-
----
-
-## 2. Backend Deployment on Render
-
-### Step 2.1: Create Web Service
-1. In Render Dashboard, click **New +** -> **Web Service**.
-2. Connect your Git repository containing SettleHub.
-3. Configure the service:
-   - **Name**: `settlehub-backend`
-   - **Region**: Same region as your database.
-   - **Branch**: `main`
-   - **Root Directory**: `backend`
-   - **Environment**: **Docker** (Uses `backend/Dockerfile`)
-   - **Plan**: **Free** (0.1 CPU, 512MB RAM)
-
-### Step 2.2: Environment Variables
-Add the following environment variables in Render:
-
-| Key | Value | Description |
-|---|---|---|
-| `DATABASE_URL` | `<paste your postgresql connection string>` | Automatically converted to JDBC by `DatabaseUrlEnvironmentPostProcessor` |
-| `app.jwt.secret` | `<generate a secure 64-char hex string>` | Signing key for HS256 JWT tokens |
-| `app.jwt.expiration-ms` | `86400000` | 24-hour token validity |
-| `PORT` | `8080` | Container listening port |
-
-### Step 2.3: Memory Management (512MB Limit)
-Render strictly enforces 512MB container RAM limits. The included `backend/Dockerfile` sets:
-```bash
-JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75.0 -XX:InitialRAMPercentage=50.0 -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError"
-```
-- **Heap Allocation**: ~384MB max (75% of 512MB).
-- **Headroom**: ~128MB reserved for Metaspace, GC worker threads, and Linux cgroup kernel buffers.
-- **ExitOnOutOfMemoryError**: Ensures immediate restarts if limits are exceeded, preventing silent freeze.
-
----
-
-## 3. Frontend Deployment on Cloudflare Pages
-
-### Step 3.1: Connect Repository
-1. Log in to [Cloudflare Dashboard](https://dash.cloudflare.com) and navigate to **Workers & Pages**.
-2. Click **Create Application** -> **Pages** -> **Connect to Git**.
-3. Select the SettleHub repository.
-
-### Step 3.2: Build Configuration
-Configure the build settings:
-- **Project Name**: `settlehub`
-- **Production Branch**: `main`
-- **Framework Preset**: **Vite**
-- **Root Directory**: `frontend`
-- **Build Command**: `npm run build`
-- **Build Output Directory**: `dist`
-
-### Step 3.3: Environment Variables
-Add the backend API endpoint URL:
-
-| Key | Value |
-|---|---|
-| `VITE_API_URL` | `https://settlehub-backend.onrender.com/api/v1` |
-
-### Step 3.4: SPA Routing Redirects
-Cloudflare Pages automatically serves `frontend/public/_redirects`:
-```
-/*  /index.html  200
-```
-This guarantees client-side HTML5 history routing without 404 errors on deep linking or page refresh.
-
----
-
-## 4. Local Development & Testing
-
-### Running the Backend Locally
-Requirements: Java 21+ and Maven 3.9+.
+2.0's Blueprint created a free Render database, which Render deletes 30 days after creation. Copy it to Neon before then:
 
 ```bash
+pg_dump --no-owner --no-acl "<render external connection string>" > settlehub.sql
+psql "<neon connection string>" < settlehub.sql
+```
+
+Then point `DATABASE_URL` at Neon (step 2). On start, Flyway baselines the 2.0 schema and upgrades it in place. Removing the database from `render.yaml` does not delete it; delete it in the Render dashboard once you have checked the data on Neon.
+
+---
+
+## 2. Backend: Render
+
+1. [dashboard.render.com](https://dashboard.render.com) → **New → Blueprint** → choose this repository. Render reads `render.yaml`.
+2. When asked for `DATABASE_URL`, paste the Neon string. `JWT_SECRET` is generated automatically and kept across deploys.
+3. **Apply**. The first Docker build takes several minutes (it includes the CDS training run).
+4. Check it:
+   ```bash
+   curl https://<service>.onrender.com/api/v1/health        # liveness, no database
+   curl https://<service>.onrender.com/api/v1/health/ready  # also checks the database
+   ```
+
+Optional environment variables (set them in the service's **Environment** tab):
+
+| Variable | When to set it |
+| --- | --- |
+| `APP_CORS_ALLOWED_ORIGINS` | The frontend is on a custom domain. Comma-separated; include the defaults you still need, e.g. `https://settle.example.com,https://*.pages.dev,https://localhost,capacitor://localhost` |
+| `APP_AUTH_RATE_LIMIT` | Change the 10 login attempts/minute limit |
+| `APP_RECEIPT_MAX_CHARS` | Change the receipt photo size limit |
+| `spring.mail.*` (`SPRING_MAIL_HOST`, …) | Enable the email report export |
+
+Leave a variable **unset** rather than empty: an empty `APP_CORS_ALLOWED_ORIGINS` blocks every origin.
+
+### Why the image looks the way it does
+
+The free plan's 0.1 CPU makes JVM start-up the slow part of waking from sleep. `backend/Dockerfile`:
+
+- unpacks the jar and runs the app once at build time (`-Dspring.context.exit=onRefresh`) to record a **Class Data Sharing** archive, which the real start maps in instead of loading those classes again. The training run uses the in-memory H2 database, so the build needs no secrets or network;
+- uses `-XX:+UseSerialGC -XX:TieredStopAtLevel=1` (no parallel GC or C2 compiler threads competing for the single throttled core) and `MaxRAMPercentage=75` to stay inside 512 MB.
+
+### Keeping it awake (optional)
+
+`.github/workflows/keep-warm.yml` pings `/api/v1/health` every 10 minutes once you set the repository variable `SETTLEHUB_BACKEND_URL` (e.g. `https://settlehub-backend.onrender.com`). That endpoint never touches the database, so Neon still sleeps. Only use it if:
+
+- this is your only free Render service (one always-on service uses ~744 of the 750 free hours), and
+- the repository is public (on a private repo the pings would use more than the 2,000 free Actions minutes).
+
+GitHub pauses scheduled workflows in repositories with no activity for 60 days; re-enable it in the Actions tab if that happens.
+
+---
+
+## 3. Frontend: Cloudflare Pages
+
+1. [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages → Create → Pages → Connect to Git** → this repository.
+2. Build settings:
+   - Framework preset: **Vite**
+   - Root directory: `frontend`
+   - Build command: `npm run build`
+   - Output directory: `dist`
+3. Environment variable: `VITE_API_URL` = `https://<service>.onrender.com/api/v1`
+4. **Save and Deploy**.
+
+`frontend/public/_redirects` sends every path to `index.html`, so deep links such as `/groups/<id>` and `/join/<code>` work on reload. `*.pages.dev` is already allowed by the backend's CORS default.
+
+---
+
+## 4. Android APK: GitHub Releases
+
+`.github/workflows/release-apk.yml` builds the APK and attaches it to a GitHub Release whenever a `v*` tag is pushed.
+
+1. **Settings → Secrets and variables → Actions → Variables**: add `SETTLEHUB_API_URL` = `https://<service>.onrender.com/api/v1`.
+2. **Signing key (recommended).** Android only installs an update that is signed with the same key as the installed app. Without a key, the workflow signs with a throwaway debug key and users must uninstall before every update. Create a key once and keep a backup; if you lose it, users have to reinstall:
+   ```bash
+   keytool -genkeypair -v -keystore settlehub-release.jks -alias settlehub \
+     -keyalg RSA -keysize 2048 -validity 10000
+   base64 -i settlehub-release.jks | pbcopy     # macOS; on Linux: base64 -w0 settlehub-release.jks
+   ```
+   Add these repository **secrets**: `ANDROID_KEYSTORE_BASE64` (the base64 text), `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` (`settlehub`), `ANDROID_KEY_PASSWORD`.
+3. Release:
+   ```bash
+   git tag v3.0.0
+   git push origin v3.0.0
+   ```
+   The APK appears at `https://github.com/<owner>/settlehub/releases/latest/download/SettleHub.apk`. To rebuild an existing tag, run the workflow manually from the Actions tab and enter the tag.
+
+The version name comes from the tag (`v3.0.0` → `3.0.0`) and the version code from the workflow run number, so each release installs over the previous one.
+
+---
+
+## 5. Continuous integration
+
+`.github/workflows/ci.yml` runs on every push to `main` and every pull request:
+
+- backend: `mvn verify` (JUnit + MockMvc against in-memory H2)
+- frontend: `npm run lint`, `npm test` (Vitest), `npm run build`
+
+Tests never use a real database: the Maven test run sets `app.database-url.enabled=false`, so a `DATABASE_URL` in your shell or a local `.env.local` is ignored.
+
+---
+
+## 6. Local development
+
+```bash
+# Backend on in-memory H2 with demo users (alice@ / bob@settlehub.com, password123)
 cd backend
+mvn spring-boot:run -Dspring-boot.run.jvmArguments=-Dapp.database-url.enabled=false
 
-# Run the test suite (11 unit & integration tests)
-mvn clean test
-
-# Launch local Spring Boot server (defaults to in-memory H2 with PostgreSQL compatibility)
-mvn spring-boot:run
+# Frontend on http://localhost:3000 (proxies /api and /ws to :8080)
+cd frontend && npm ci && npm run dev
 ```
-The server will start on `http://localhost:8080`.
 
-### Running the Frontend Locally
-Requirements: Node 18+ and npm 10+.
-
-```bash
-cd frontend
-
-# Install dependencies
-npm install
-
-# Start development server with API proxying
-npm run dev
-```
-The client will start on `http://localhost:3000` with requests to `/api/*` proxied to `http://localhost:8080`.
+Without `-Dapp.database-url.enabled=false`, the backend reads `DATABASE_URL` from the environment or from `.env.local` / `.env` in `backend/` or the repo root, and then also needs `JWT_SECRET`. Point it at a Neon branch, not production.
 
 ---
 
-## 5. Verification Checklist
+## 7. Verification checklist
 
-- [x] Java 21 & Spring Boot 3 compilation with 0 warnings.
-- [x] JUnit 5 test suite covering cent-precision division, percentage discrepancy correction, circular debt resolution, and end-to-end integration flow.
-- [x] `DatabaseUrlEnvironmentPostProcessor` parsing `postgres://` into valid JDBC connection with `sslmode=require`.
-- [x] CORS bean configured for `http://localhost:*` and `https://*.pages.dev`.
-- [x] Multi-stage Dockerfile with `-XX:MaxRAMPercentage=75.0` for 512MB RAM constraints.
-- [x] React 18 + Vite production build (`dist/`) with zero TypeScript errors.
-- [x] Cloudflare Pages `public/_redirects` SPA rewrite file.
+- [ ] `GET /api/v1/health` returns `"status":"UP"` and `"version":"3.0.0"`.
+- [ ] `GET /api/v1/health/ready` returns 200 (database reachable, migrations applied).
+- [ ] Sign up and sign in on the Pages URL; create a group; add an expense.
+- [ ] Open the same group as a second user in another browser: the expense appears without a refresh and the header shows **live**.
+- [ ] Settle a debt from the balances card; the payment shows under **Payments** and can be undone.
+- [ ] Reload a `/groups/<id>` URL directly; it loads (SPA redirect works).
+- [ ] Install the APK from the latest release; it reaches the backend and the Android back button navigates within the app.

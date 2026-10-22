@@ -13,9 +13,7 @@ public class ExactSplitStrategy implements SplitStrategy {
 
     @Override
     public Map<UUID, Long> calculateSplits(Long totalCostCents, List<UUID> participantIds, Map<UUID, ?> params) {
-        if (participantIds == null || participantIds.isEmpty()) {
-            throw new IllegalArgumentException("Participant list cannot be empty for exact split.");
-        }
+        SplitStrategy.requireDistinctParticipants(participantIds);
         if (params == null || params.isEmpty()) {
             throw new IllegalArgumentException("Exact split requires amounts specified in params.");
         }
