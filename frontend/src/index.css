@@ -57,12 +57,17 @@
 }
 
 @layer base {
+  /* clip, not hidden: hidden turns body/#root into nested scroll containers, which breaks
+     vertical touch scrolling on mobile browsers and the Android WebView */
   html, body, #root {
     width: 100%;
-    max-width: 100vw;
-    overflow-x: hidden;
+    max-width: 100%;
+    overflow-x: clip;
     margin: 0;
     padding: 0;
+  }
+  html {
+    overscroll-behavior-y: none;
   }
   * {
     -webkit-tap-highlight-color: transparent;
@@ -78,7 +83,6 @@
     padding-right: env(safe-area-inset-right, 0px);
     touch-action: manipulation;
     -webkit-font-smoothing: antialiased;
-    overscroll-behavior-y: none;
   }
   :focus-visible {
     outline: 2px solid var(--brand);

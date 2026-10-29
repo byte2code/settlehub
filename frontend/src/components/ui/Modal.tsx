@@ -15,6 +15,16 @@ interface ModalProps {
 
 const SIZES = { sm: 'sm:max-w-sm', md: 'sm:max-w-md', lg: 'sm:max-w-xl' };
 
+// Counts open dialogs so closing one of two stacked dialogs can't leave the page unscrollable
+let openDialogs = 0;
+function lockScroll() {
+  if (openDialogs++ === 0) document.documentElement.style.overflow = 'hidden';
+}
+function unlockScroll() {
+  openDialogs = Math.max(0, openDialogs - 1);
+  if (openDialogs === 0) document.documentElement.style.overflow = '';
+}
+
 /**
  * Accessible dialog: Escape closes, focus moves in and is restored, background scroll is locked.
  * Renders as a bottom sheet on phones and a centred card on larger screens.
@@ -31,8 +41,7 @@ export function Modal({ open, onClose, title, subtitle, icon, children, footer, 
   useEffect(() => {
     if (!open) return;
     const previouslyFocused = document.activeElement as HTMLElement | null;
-    const overflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    lockScroll();
     const first = panel.current?.querySelector<HTMLElement>('[data-autofocus], input, select, textarea, button:not([data-close])');
     (first ?? panel.current)?.focus();
 
@@ -45,7 +54,7 @@ export function Modal({ open, onClose, title, subtitle, icon, children, footer, 
     document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = overflow;
+      unlockScroll();
       previouslyFocused?.focus?.();
     };
   }, [open]);
