@@ -1,3 +1,6 @@
+import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
 import type {
   Activity,
   AuthResponse,
@@ -172,7 +175,7 @@ export const api = {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     if (!res.ok) throw new ApiError(res.status, `Could not generate the Excel report (HTTP ${res.status})`);
-    downloadBlob(await res.blob(), `${safeFileName(fileBaseName)}_SettleHub.xlsx`);
+    await downloadBlob(await res.blob(), `${safeFileName(fileBaseName)}_SettleHub.xlsx`);
   },
 };
 
@@ -180,7 +183,41 @@ export function safeFileName(name: string): string {
   return (name || 'SettleHub').replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 60);
 }
 
-export function downloadBlob(blob: Blob, fileName: string) {
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const base64 = dataUrl.split(',')[1] || '';
+      resolve(base64);
+    };
+    reader.readAsDataURL(blob);
+  });
+}
+
+export async function downloadBlob(blob: Blob, fileName: string): Promise<void> {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const base64Data = await blobToBase64(blob);
+      const savedFile = await Filesystem.writeFile({
+        path: fileName,
+        data: base64Data,
+        directory: Directory.Cache,
+      });
+
+      await Share.share({
+        title: fileName,
+        text: `SettleHub export: ${fileName}`,
+        url: savedFile.uri,
+        dialogTitle: `Share or Save ${fileName}`,
+      });
+      return;
+    } catch (e) {
+      console.warn('Native file save/share failed, falling back to browser download', e);
+    }
+  }
+
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;

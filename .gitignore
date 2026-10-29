@@ -50,3 +50,4 @@ build/
 .env.production.local
 .neon
 !**/gradle/wrapper/gradle-wrapper.jar
+.claude/

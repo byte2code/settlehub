@@ -21,6 +21,12 @@ import org.springframework.web.util.HtmlUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -43,6 +49,19 @@ public class ExportService {
 
     @Value("${spring.mail.username:}")
     private String mailFrom;
+
+    @Value("${brevo.api.key:${BREVO_API_KEY:}}")
+    private String brevoApiKey;
+
+    @Value("${brevo.sender.email:${BREVO_SENDER_EMAIL:}}")
+    private String brevoSenderEmail;
+
+    @Value("${resend.api.key:${RESEND_API_KEY:}}")
+    private String resendApiKey;
+
+    private final HttpClient httpClient = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(10))
+            .build();
 
     public ExportService(ExpenseRepository expenseRepository,
                          SettlementRepository settlementRepository,
@@ -338,6 +357,8 @@ public class ExportService {
 
     /**
      * Sends the Excel report and summary via email to all group members.
+     * Prefers HTTP email APIs (Brevo / Resend) over port 443 so cloud environments with blocked SMTP
+     * ports (e.g. Render free tier) can send emails cleanly without timeouts.
      */
     @Transactional(readOnly = true)
     public Map<String, Object> emailGroupReport(UUID groupId, UUID currentUserId, String timeZone) {
@@ -354,11 +375,15 @@ public class ExportService {
             throw new IllegalStateException("No valid member email addresses found for this group.");
         }
 
-        if (mailSender == null) {
-            log.warn("JavaMailSender is not configured. Direct Excel download is available.");
+        boolean hasBrevo = brevoApiKey != null && !brevoApiKey.isBlank();
+        boolean hasResend = resendApiKey != null && !resendApiKey.isBlank();
+        boolean hasSmtp = mailSender != null;
+
+        if (!hasBrevo && !hasResend && !hasSmtp) {
+            log.warn("Neither Brevo API, Resend, nor JavaMailSender is configured. Direct Excel download is available.");
             return Map.of(
                     "success", false,
-                    "message", "Email SMTP not configured. You can download the Excel sheet directly via the Download button!",
+                    "message", "Email service not configured. You can download the Excel sheet directly via the Download button!",
                     "recipients", recipientEmails
             );
         }
@@ -367,34 +392,53 @@ public class ExportService {
             byte[] excelBytes = generateExcelReport(groupId, currentUserId, timeZone);
             Map<String, Object> waSummary = generateWhatsAppSummary(groupId, currentUserId);
             String summaryText = (String) waSummary.get("summaryText");
+            String fileName = group.getName().replaceAll("[^a-zA-Z0-9_-]", "_") + "_Expense_Report.xlsx";
 
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            if (hasBrevo) {
+                boolean sent = sendBrevoEmail(recipientEmails, group.getName(), summaryText, excelBytes, fileName);
+                if (sent) {
+                    return Map.of(
+                            "success", true,
+                            "message", "Excel report successfully emailed to " + recipientEmails.size() + " member(s)!",
+                            "recipients", recipientEmails
+                    );
+                }
+            } else if (hasResend) {
+                boolean sent = sendResendEmail(recipientEmails, group.getName(), summaryText, excelBytes, fileName);
+                if (sent) {
+                    return Map.of(
+                            "success", true,
+                            "message", "Excel report successfully emailed to " + recipientEmails.size() + " member(s)!",
+                            "recipients", recipientEmails
+                    );
+                }
+            }
 
-            String from = (mailFrom != null && !mailFrom.isBlank()) ? mailFrom : "noreply@settlehub.com";
-            helper.setFrom(from, "SettleHub");
-            helper.setTo(recipientEmails.toArray(new String[0]));
-            helper.setSubject("📊 SettleHub Expense Report: " + group.getName());
+            if (hasSmtp) {
+                MimeMessage message = mailSender.createMimeMessage();
+                MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
-            String htmlBody = "<html><body style='font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; color: #1e293b;'>"
-                    + "<div style='max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;'>"
-                    + "<h2 style='color: #0f766e;'>📊 SettleHub — " + HtmlUtils.htmlEscape(group.getName()) + "</h2>"
-                    + "<p>Attached is the full Excel spreadsheet with all recorded transactions and debt settlements for your trip.</p>"
-                    + "<div style='background-color: #f8fafc; padding: 15px; border-radius: 8px; font-family: monospace; white-space: pre-wrap; font-size: 13px;'>"
-                    + HtmlUtils.htmlEscape(summaryText).replace("\n", "<br/>")
-                    + "</div>"
-                    + "<p style='margin-top: 20px; font-size: 12px; color: #64748b;'>Sent automatically via SettleHub</p>"
-                    + "</div></body></html>";
+                String from = (mailFrom != null && !mailFrom.isBlank()) ? mailFrom : "noreply@settlehub.com";
+                helper.setFrom(from, "SettleHub");
+                helper.setTo(recipientEmails.toArray(new String[0]));
+                helper.setSubject("📊 SettleHub Expense Report: " + group.getName());
 
-            helper.setText(htmlBody, true);
-            helper.addAttachment(group.getName().replaceAll("[^a-zA-Z0-9_-]", "_") + "_Expense_Report.xlsx",
-                    new ByteArrayResource(excelBytes));
+                String htmlBody = buildHtmlReport(group.getName(), summaryText);
+                helper.setText(htmlBody, true);
+                helper.addAttachment(fileName, new ByteArrayResource(excelBytes));
 
-            mailSender.send(message);
+                mailSender.send(message);
+
+                return Map.of(
+                        "success", true,
+                        "message", "Excel report successfully emailed to " + recipientEmails.size() + " member(s)!",
+                        "recipients", recipientEmails
+                );
+            }
 
             return Map.of(
-                    "success", true,
-                    "message", "Excel report successfully emailed to " + recipientEmails.size() + " member(s)!",
+                    "success", false,
+                    "message", "Could not send the email right now. You can use direct Excel download instead!",
                     "recipients", recipientEmails
             );
         } catch (Exception e) {
@@ -404,6 +448,137 @@ public class ExportService {
                     "message", "Could not send the email right now. You can use direct Excel download instead!",
                     "recipients", recipientEmails
             );
+        }
+    }
+
+    private String buildHtmlReport(String groupName, String summaryText) {
+        return "<html><body style='font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; color: #1e293b;'>"
+                + "<div style='max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;'>"
+                + "<h2 style='color: #0f766e;'>📊 SettleHub — " + HtmlUtils.htmlEscape(groupName) + "</h2>"
+                + "<p>Attached is the full Excel spreadsheet with all recorded transactions and debt settlements for your trip.</p>"
+                + "<div style='background-color: #f8fafc; padding: 15px; border-radius: 8px; font-family: monospace; white-space: pre-wrap; font-size: 13px;'>"
+                + HtmlUtils.htmlEscape(summaryText).replace("\n", "<br/>")
+                + "</div>"
+                + "<p style='margin-top: 20px; font-size: 12px; color: #64748b;'>Sent automatically via SettleHub</p>"
+                + "</div></body></html>";
+    }
+
+    private static String jsonString(String str) {
+        if (str == null) return "null";
+        StringBuilder sb = new StringBuilder("\"");
+        for (int i = 0; i < str.length(); i++) {
+            char c = str.charAt(i);
+            switch (c) {
+                case '"' -> sb.append("\\\"");
+                case '\\' -> sb.append("\\\\");
+                case '\b' -> sb.append("\\b");
+                case '\f' -> sb.append("\\f");
+                case '\n' -> sb.append("\\n");
+                case '\r' -> sb.append("\\r");
+                case '\t' -> sb.append("\\t");
+                default -> {
+                    if (c < 32) {
+                        sb.append(String.format("\\u%04x", (int) c));
+                    } else {
+                        sb.append(c);
+                    }
+                }
+            }
+        }
+        sb.append("\"");
+        return sb.toString();
+    }
+
+    private boolean sendBrevoEmail(List<String> recipientEmails, String groupName, String summaryText,
+                                   byte[] excelBytes, String fileName) {
+        try {
+            String senderEmail = (brevoSenderEmail != null && !brevoSenderEmail.isBlank())
+                    ? brevoSenderEmail.trim()
+                    : (mailFrom != null && !mailFrom.isBlank() ? mailFrom.trim() : "noreply@settlehub.com");
+
+            StringBuilder toArr = new StringBuilder("[");
+            for (int i = 0; i < recipientEmails.size(); i++) {
+                if (i > 0) toArr.append(",");
+                toArr.append("{\"email\":").append(jsonString(recipientEmails.get(i))).append("}");
+            }
+            toArr.append("]");
+
+            String base64Excel = Base64.getEncoder().encodeToString(excelBytes);
+
+            String jsonBody = "{"
+                    + "\"sender\":{\"name\":\"SettleHub\",\"email\":" + jsonString(senderEmail) + "},"
+                    + "\"to\":" + toArr + ","
+                    + "\"subject\":" + jsonString("📊 SettleHub Expense Report: " + groupName) + ","
+                    + "\"htmlContent\":" + jsonString(buildHtmlReport(groupName, summaryText)) + ","
+                    + "\"attachment\":[{\"name\":" + jsonString(fileName) + ",\"content\":" + jsonString(base64Excel) + "}]"
+                    + "}";
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("https://api.brevo.com/v3/smtp/email"))
+                    .timeout(Duration.ofSeconds(15))
+                    .header("api-key", brevoApiKey.trim())
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody, StandardCharsets.UTF_8))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                log.info("Successfully sent Brevo email report for group '{}' to {} recipient(s): HTTP {}",
+                        groupName, recipientEmails.size(), response.statusCode());
+                return true;
+            } else {
+                log.error("Brevo API error (HTTP {}): {}", response.statusCode(), response.body());
+                return false;
+            }
+        } catch (Exception e) {
+            log.error("Failed to send Brevo HTTP email for group '{}': {}", groupName, e.getMessage(), e);
+            return false;
+        }
+    }
+
+    private boolean sendResendEmail(List<String> recipientEmails, String groupName, String summaryText,
+                                    byte[] excelBytes, String fileName) {
+        try {
+            String from = (mailFrom != null && !mailFrom.isBlank()) ? mailFrom.trim() : "SettleHub <onboarding@resend.dev>";
+
+            StringBuilder toArr = new StringBuilder("[");
+            for (int i = 0; i < recipientEmails.size(); i++) {
+                if (i > 0) toArr.append(",");
+                toArr.append(jsonString(recipientEmails.get(i)));
+            }
+            toArr.append("]");
+
+            String base64Excel = Base64.getEncoder().encodeToString(excelBytes);
+
+            String jsonBody = "{"
+                    + "\"from\":" + jsonString(from) + ","
+                    + "\"to\":" + toArr + ","
+                    + "\"subject\":" + jsonString("📊 SettleHub Expense Report: " + groupName) + ","
+                    + "\"html\":" + jsonString(buildHtmlReport(groupName, summaryText)) + ","
+                    + "\"attachments\":[{\"filename\":" + jsonString(fileName) + ",\"content\":" + jsonString(base64Excel) + "}]"
+                    + "}";
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("https://api.resend.com/emails"))
+                    .timeout(Duration.ofSeconds(15))
+                    .header("Authorization", "Bearer " + resendApiKey.trim())
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody, StandardCharsets.UTF_8))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                log.info("Successfully sent Resend email report for group '{}' to {} recipient(s): HTTP {}",
+                        groupName, recipientEmails.size(), response.statusCode());
+                return true;
+            } else {
+                log.error("Resend API error (HTTP {}): {}", response.statusCode(), response.body());
+                return false;
+            }
+        } catch (Exception e) {
+            log.error("Failed to send Resend HTTP email for group '{}': {}", groupName, e.getMessage(), e);
+            return false;
         }
     }
 }

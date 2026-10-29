@@ -67,7 +67,7 @@ export default function ExportModal({ group, onClose }: { group: Group; onClose:
           e.notes ?? '',
         ]),
       ];
-      downloadBlob(new Blob(['﻿' + toCsv(rows)], { type: 'text/csv;charset=utf-8' }), `${safeFileName(group.name)}_SettleHub.csv`);
+      await downloadBlob(new Blob(['\ufeff' + toCsv(rows)], { type: 'text/csv;charset=utf-8' }), `${safeFileName(group.name)}_SettleHub.csv`);
     });
 
   const TABS: { id: Tab; label: string; icon: typeof Mail }[] = [
