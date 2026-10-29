@@ -25,13 +25,16 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider tokenProvider;
+    private final EmailVerificationService emailVerificationService;
 
     public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder,
-                       AuthenticationManager authenticationManager, JwtTokenProvider tokenProvider) {
+                       AuthenticationManager authenticationManager, JwtTokenProvider tokenProvider,
+                       EmailVerificationService emailVerificationService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.tokenProvider = tokenProvider;
+        this.emailVerificationService = emailVerificationService;
     }
 
     /**
@@ -45,6 +48,9 @@ public class AuthService {
             ? CurrencyUtil.normalize(request.currencyCode()) : CurrencyUtil.DEFAULT_CURRENCY;
         String firstName = request.firstName().trim();
         String lastName = request.lastName() != null ? request.lastName().trim() : "";
+
+        // Enforce email verification if required and not bypassed
+        emailVerificationService.validateRegistrationOtp(email, request.otp());
 
         User user = userRepository.findByEmail(email).map(existing -> {
             if (!existing.isPlaceholder()) {

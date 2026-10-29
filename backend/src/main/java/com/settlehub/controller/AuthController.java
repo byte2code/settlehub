@@ -16,9 +16,22 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
+    private final com.settlehub.service.EmailVerificationService emailVerificationService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, com.settlehub.service.EmailVerificationService emailVerificationService) {
         this.authService = authService;
+        this.emailVerificationService = emailVerificationService;
+    }
+
+    @PostMapping("/send-otp")
+    public SendOtpResponse sendOtp(@Valid @RequestBody SendOtpRequest request) {
+        return emailVerificationService.sendOtp(request.email());
+    }
+
+    @PostMapping("/verify-otp")
+    public Map<String, Object> verifyOtp(@Valid @RequestBody VerifyOtpRequest request) {
+        boolean valid = emailVerificationService.verifyOtp(request.email(), request.code());
+        return Map.of("success", valid, "message", "Email verified successfully");
     }
 
     @PostMapping("/register")

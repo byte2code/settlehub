@@ -161,6 +161,13 @@ export interface AuthResponse {
   user: User;
 }
 
+export interface SendOtpResponse {
+  success: boolean;
+  bypassed: boolean;
+  message: string;
+  expiresInSeconds: number;
+}
+
 export interface AppNotification {
   id: string;
   groupId: string;

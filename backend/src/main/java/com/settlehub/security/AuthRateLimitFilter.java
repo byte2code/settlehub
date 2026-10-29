@@ -44,7 +44,9 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         if (!"POST".equalsIgnoreCase(request.getMethod())) return true;
         String path = request.getRequestURI();
-        return !(path.endsWith("/auth/login") || path.endsWith("/auth/register") || path.endsWith("/auth/me/password"));
+        return !(path.endsWith("/auth/login") || path.endsWith("/auth/register")
+                || path.endsWith("/auth/send-otp") || path.endsWith("/auth/verify-otp")
+                || path.endsWith("/auth/me/password"));
     }
 
     @Override

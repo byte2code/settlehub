@@ -1,5 +1,6 @@
 package com.settlehub.config;
 
+import com.settlehub.exception.BadRequestException;
 import com.settlehub.exception.ConflictException;
 import com.settlehub.exception.ForbiddenException;
 import com.settlehub.exception.NotFoundException;
@@ -64,7 +65,7 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.UNAUTHORIZED, "Invalid email or password");
     }
 
-    @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class})
+    @ExceptionHandler({BadRequestException.class, IllegalArgumentException.class, IllegalStateException.class})
     public ResponseEntity<Map<String, Object>> handleBadRequest(RuntimeException ex) {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage());
     }

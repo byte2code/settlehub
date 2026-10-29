@@ -23,5 +23,12 @@ public record RegisterRequest(
     String lastName,
 
     @Pattern(regexp = "^$|^[A-Za-z]{3}$", message = "Currency must be a 3-letter ISO code")
-    String currencyCode
-) {}
+    String currencyCode,
+
+    @Size(max = 10, message = "Verification code is invalid")
+    String otp
+) {
+    public RegisterRequest(String email, String password, String firstName, String lastName, String currencyCode) {
+        this(email, password, firstName, lastName, currencyCode, null);
+    }
+}

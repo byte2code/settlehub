@@ -13,6 +13,7 @@ import type {
   GroupType,
   InvitePreview,
   NotificationSummary,
+  SendOtpResponse,
   Settlement,
   User,
 } from '../types';
@@ -112,8 +113,17 @@ export interface GroupUpdate {
 
 export const api = {
   // Auth & profile
-  register: (data: { email: string; password: string; firstName: string; lastName?: string; currencyCode?: string }) =>
-    request<AuthResponse>('POST', '/auth/register', data),
+  sendOtp: (email: string) => request<SendOtpResponse>('POST', '/auth/send-otp', { email }),
+  verifyOtp: (email: string, code: string) =>
+    request<{ success: boolean; message: string }>('POST', '/auth/verify-otp', { email, code }),
+  register: (data: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName?: string;
+    currencyCode?: string;
+    otp?: string;
+  }) => request<AuthResponse>('POST', '/auth/register', data),
   login: (data: { email: string; password: string }) => request<AuthResponse>('POST', '/auth/login', data),
   me: () => request<User>('GET', '/auth/me'),
   updateProfile: (data: { firstName?: string; lastName?: string; currencyCode?: string; upiId?: string }) =>
