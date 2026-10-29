@@ -35,6 +35,7 @@ public class ExpenseService {
     private final GroupAccessService access;
     private final ActivityService activityService;
     private final WebSocketEventPublisher events;
+    private final NotificationService notificationService;
     private final int maxReceiptChars;
 
     public ExpenseService(ExpenseRepository expenseRepository,
@@ -47,6 +48,7 @@ public class ExpenseService {
                           GroupAccessService access,
                           ActivityService activityService,
                           WebSocketEventPublisher events,
+                          NotificationService notificationService,
                           @Value("${app.receipts.max-chars:480000}") int maxReceiptChars) {
         this.expenseRepository = expenseRepository;
         this.receiptRepository = receiptRepository;
@@ -58,6 +60,7 @@ public class ExpenseService {
         this.access = access;
         this.activityService = activityService;
         this.events = events;
+        this.notificationService = notificationService;
         this.maxReceiptChars = maxReceiptChars;
     }
 
@@ -77,6 +80,7 @@ public class ExpenseService {
         activityService.record(group, me.getUser(), Activity.Type.EXPENSE_CREATED,
             me.getUser().getFirstName() + " added \"" + saved.getDescription() + "\"", saved.getCostCents());
         events.publishGroupEvent(groupId, "EXPENSE_CREATED", currentUserId, saved.getId());
+        notificationService.notifyExpenseCreated(saved, me.getUser());
         return ExpenseDto.fromEntity(saved);
     }
 
@@ -126,6 +130,7 @@ public class ExpenseService {
         }
         activityService.record(group, actor, Activity.Type.EXPENSE_UPDATED, summary, saved.getCostCents());
         events.publishGroupEvent(group.getId(), "EXPENSE_UPDATED", currentUserId, saved.getId());
+        notificationService.notifyExpenseUpdated(saved, actor);
         return ExpenseDto.fromEntity(saved);
     }
 
@@ -141,6 +146,7 @@ public class ExpenseService {
         activityService.record(group, actor, Activity.Type.EXPENSE_DELETED,
             actor.getFirstName() + " deleted \"" + expense.getDescription() + "\"", expense.getCostCents());
         events.publishGroupEvent(group.getId(), "EXPENSE_DELETED", currentUserId, expenseId);
+        notificationService.notifyExpenseDeleted(group, actor, expense.getDescription(), expense.getCostCents());
     }
 
     @Transactional(readOnly = true)

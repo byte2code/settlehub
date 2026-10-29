@@ -160,3 +160,21 @@ export interface AuthResponse {
   tokenType: string;
   user: User;
 }
+
+export interface AppNotification {
+  id: string;
+  groupId: string;
+  entityId?: string | null;
+  type: string;
+  title: string;
+  message: string;
+  actorId?: string | null;
+  actorName: string;
+  read: boolean;
+  createdAt: string;
+}
+
+export interface NotificationSummary {
+  notifications: AppNotification[];
+  unreadCount: number;
+}

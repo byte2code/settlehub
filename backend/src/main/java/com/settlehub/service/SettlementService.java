@@ -26,19 +26,22 @@ public class SettlementService {
     private final GroupAccessService access;
     private final ActivityService activityService;
     private final WebSocketEventPublisher events;
+    private final NotificationService notificationService;
 
     public SettlementService(SettlementRepository settlementRepository,
                              GroupRepository groupRepository,
                              GroupMemberRepository groupMemberRepository,
                              GroupAccessService access,
                              ActivityService activityService,
-                             WebSocketEventPublisher events) {
+                             WebSocketEventPublisher events,
+                             NotificationService notificationService) {
         this.settlementRepository = settlementRepository;
         this.groupRepository = groupRepository;
         this.groupMemberRepository = groupMemberRepository;
         this.access = access;
         this.activityService = activityService;
         this.events = events;
+        this.notificationService = notificationService;
     }
 
     /**
@@ -73,6 +76,7 @@ public class SettlementService {
             who + " paid " + payee.getFirstName() + " " + CurrencyUtil.formatCents(request.amountCents(), group.getCurrencyCode()),
             request.amountCents());
         events.publishGroupEvent(group.getId(), "SETTLEMENT_RECORDED", currentUserId, settlement.getId());
+        notificationService.notifySettlementRecorded(settlement, me.getUser());
         return SettlementDto.fromEntity(settlement);
     }
 
@@ -106,6 +110,8 @@ public class SettlementService {
                 + CurrencyUtil.formatCents(settlement.getAmountCents(), settlement.getCurrencyCode()) + ")",
             settlement.getAmountCents());
         events.publishGroupEvent(group.getId(), "SETTLEMENT_DELETED", currentUserId, settlementId);
+        notificationService.notifySettlementDeleted(group, me.getUser(), settlement.getPayer().getFirstName(),
+                settlement.getPayee().getFirstName(), settlement.getAmountCents());
     }
 
     private User memberUser(UUID groupId, UUID userId) {

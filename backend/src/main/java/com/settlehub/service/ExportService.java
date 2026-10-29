@@ -470,26 +470,30 @@ public class ExportService {
                 + "</div></body></html>";
     }
 
-    /**
-     * Produces a properly escaped JSON string literal.
-     * Uses Jackson ObjectMapper's writeValueAsString so that multi-codepoint characters
-     * (emoji, surrogate pairs, supplementary Unicode) are serialised correctly and the
-     * resulting payload is always valid JSON — fixing Brevo 400 errors caused by emoji
-     * in group names or the subject line.
-     */
-    private static final com.fasterxml.jackson.databind.ObjectMapper JSON_MAPPER =
-            new com.fasterxml.jackson.databind.ObjectMapper();
-
     private static String jsonString(String str) {
         if (str == null) return "null";
-        try {
-            return JSON_MAPPER.writeValueAsString(str);
-        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-            // Extremely unlikely — fall back to manual escaping of ASCII-safe chars only
-            return "\"" + str.replaceAll("[\"\\\\]", "\\\\$0")
-                             .replace("\n", "\\n").replace("\r", "\\r")
-                             .replace("\t", "\\t") + "\"";
+        StringBuilder sb = new StringBuilder("\"");
+        for (int i = 0; i < str.length(); i++) {
+            char c = str.charAt(i);
+            switch (c) {
+                case '"' -> sb.append("\\\"");
+                case '\\' -> sb.append("\\\\");
+                case '\b' -> sb.append("\\b");
+                case '\f' -> sb.append("\\f");
+                case '\n' -> sb.append("\\n");
+                case '\r' -> sb.append("\\r");
+                case '\t' -> sb.append("\\t");
+                default -> {
+                    if (c < 32) {
+                        sb.append(String.format("\\u%04x", (int) c));
+                    } else {
+                        sb.append(c);
+                    }
+                }
+            }
         }
+        sb.append("\"");
+        return sb.toString();
     }
 
     private boolean sendBrevoEmail(List<String> recipientEmails, String groupName, String summaryText,

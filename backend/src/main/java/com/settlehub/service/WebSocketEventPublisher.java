@@ -57,4 +57,26 @@ public class WebSocketEventPublisher {
             send.run();
         }
     }
+
+    public void publishUserNotification(UUID userId, Object notificationPayload) {
+        if (userId == null) return;
+        Runnable send = () -> {
+            try {
+                messagingTemplate.convertAndSend("/topic/users/" + userId + "/notifications", notificationPayload);
+            } catch (Exception e) {
+                log.warn("Failed to broadcast WebSocket notification for user {}: {}", userId, e.getMessage());
+            }
+        };
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    send.run();
+                }
+            });
+        } else {
+            send.run();
+        }
+    }
 }

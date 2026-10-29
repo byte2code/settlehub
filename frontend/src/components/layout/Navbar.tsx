@@ -4,6 +4,7 @@ import { Layers, LogOut, Moon, Server, Sun, MonitorSmartphone, UserRound } from 
 import { useAuth } from '../../hooks/useAuth';
 import { useTheme, type ThemePreference } from '../../hooks/useTheme';
 import { Avatar } from '../ui/bits';
+import { NotificationBell } from '../notifications/NotificationBell';
 
 const ServerConfigModal = lazy(() => import('../modals/ServerConfigModal'));
 const ProfileModal = lazy(() => import('../modals/ProfileModal'));
@@ -46,6 +47,7 @@ export function Navbar({ onSignIn }: { onSignIn: () => void }) {
           </button>
           {user ? (
             <>
+              <NotificationBell signedIn={Boolean(user)} />
               <button
                 type="button"
                 onClick={() => setShowProfile(true)}

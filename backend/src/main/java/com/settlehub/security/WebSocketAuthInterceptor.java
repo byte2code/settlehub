@@ -24,6 +24,7 @@ import java.util.regex.Pattern;
 public class WebSocketAuthInterceptor implements ChannelInterceptor {
 
     private static final Pattern GROUP_TOPIC = Pattern.compile("^/topic/groups/([0-9a-fA-F-]{36})$");
+    private static final Pattern USER_NOTIFICATION_TOPIC = Pattern.compile("^/topic/users/([0-9a-fA-F-]{36})/notifications$");
 
     private final JwtTokenProvider tokenProvider;
     private final CustomUserDetailsService userDetailsService;
@@ -53,10 +54,25 @@ public class WebSocketAuthInterceptor implements ChannelInterceptor {
             accessor.setUser(new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities()));
         } else if (command == StompCommand.SUBSCRIBE) {
             UUID userId = currentUserId(accessor.getUser());
-            Matcher matcher = GROUP_TOPIC.matcher(String.valueOf(accessor.getDestination()));
-            if (!matcher.matches() || !groupAccessService.isMember(UUID.fromString(matcher.group(1)), userId)) {
-                throw new MessageDeliveryException("Forbidden subscription");
+            String destination = String.valueOf(accessor.getDestination());
+
+            Matcher groupMatcher = GROUP_TOPIC.matcher(destination);
+            if (groupMatcher.matches()) {
+                if (!groupAccessService.isMember(UUID.fromString(groupMatcher.group(1)), userId)) {
+                    throw new MessageDeliveryException("Forbidden subscription");
+                }
+                return message;
             }
+
+            Matcher userMatcher = USER_NOTIFICATION_TOPIC.matcher(destination);
+            if (userMatcher.matches()) {
+                if (!UUID.fromString(userMatcher.group(1)).equals(userId)) {
+                    throw new MessageDeliveryException("Forbidden subscription");
+                }
+                return message;
+            }
+
+            throw new MessageDeliveryException("Forbidden subscription");
         } else if (command == StompCommand.SEND) {
             throw new MessageDeliveryException("Publishing is not supported");
         }

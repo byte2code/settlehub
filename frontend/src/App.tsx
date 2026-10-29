@@ -2,9 +2,11 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router';
 import { useAuth } from './hooks/useAuth';
 import { useNativeBackButton } from './hooks/useNativeBackButton';
+import { useGlobalNotifications } from './hooks/useGlobalNotifications';
 import { Navbar } from './components/layout/Navbar';
 import { WakeBanner } from './components/layout/WakeBanner';
 import { UpdatePrompt } from './components/layout/UpdatePrompt';
+import { InAppNotificationBanner } from './components/notifications/InAppNotificationBanner';
 import { PageSpinner } from './components/ui/bits';
 import { Landing } from './pages/Landing';
 
@@ -19,6 +21,7 @@ export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
   useNativeBackButton();
+  useGlobalNotifications(user);
 
   // 2.0 invite links looked like /?join=CODE
   useEffect(() => {
@@ -30,6 +33,7 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen flex-col bg-app text-fg">
+      <InAppNotificationBanner />
       <WakeBanner />
       <Navbar onSignIn={() => openAuth()} />
       <main className="flex-1">

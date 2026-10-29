@@ -12,6 +12,7 @@ import type {
   GroupRole,
   GroupType,
   InvitePreview,
+  NotificationSummary,
   Settlement,
   User,
 } from '../types';
@@ -159,6 +160,11 @@ export const api = {
   recordSettlement: (data: { groupId: string; payerId: string; payeeId: string; amountCents: number; note?: string }) =>
     request<Settlement>('POST', '/settlements', data),
   deleteSettlement: (id: string) => request<{ success: boolean }>('DELETE', `/settlements/${id}`),
+
+  // Notifications
+  notifications: (limit = 30) => request<NotificationSummary>('GET', `/notifications?limit=${limit}`),
+  markNotificationRead: (id: string) => request<{ success: boolean }>('PATCH', `/notifications/${id}/read`),
+  markAllNotificationsRead: () => request<{ success: boolean }>('POST', '/notifications/read-all'),
 
   // Exports
   whatsappSummary: (groupId: string) =>
