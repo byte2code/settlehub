@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <external-path name="my_images" path="." />
-    <cache-path name="my_cache_images" path="." />
+    <!-- External public storage (images, downloads shared to other apps) -->
+    <external-path name="external_files" path="." />
+    <!-- App-private cache dir — used by Capacitor Filesystem Directory.Cache -->
+    <cache-path name="cache_files" path="." />
+    <!-- App-private files dir — used by Capacitor Filesystem Directory.Data -->
+    <files-path name="internal_files" path="." />
+    <!-- External cache dir — fallback used by some Capacitor Share paths -->
+    <external-cache-path name="external_cache_files" path="." />
 </paths>

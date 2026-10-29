@@ -126,8 +126,7 @@ export default function ExportModal({ group, onClose }: { group: Group; onClose:
         {tab === 'email' && (
           <div className="space-y-3">
             <p className="text-sm text-muted">
-              Emails the Excel report and summary to all {group.members.length} members. Requires SMTP to be configured on the server
-              (free with Brevo or a Gmail app password) — otherwise use the Excel download.
+              Emails the full Excel report + balance summary to all {group.members.length} member(s) in this group.
             </p>
             <button
               className="btn-primary w-full py-2.5 text-sm"
@@ -135,13 +134,30 @@ export default function ExportModal({ group, onClose }: { group: Group; onClose:
               onClick={() =>
                 run('email', async () => {
                   const res = await api.emailReport(group.id);
-                  if (res.success) toast.success(res.message);
-                  else toast.info(res.message);
+                  if (res.success) {
+                    toast.success(res.message);
+                  } else {
+                    // Show a clear message — don't silently swallow "not configured"
+                    toast.error(res.message);
+                  }
                 })
               }
             >
               <Mail className="h-4 w-4" /> {busy === 'email' ? 'Sending…' : 'Email the report'}
             </button>
+            <p className="text-xs text-muted">
+              💡 Email requires a free{' '}
+              <a
+                href="https://app.brevo.com/settings/keys/api"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-fg"
+              >
+                Brevo API key
+              </a>{' '}
+              set as <code className="rounded bg-surface-2 px-1">BREVO_API_KEY</code> in your Render environment variables.
+              No key? Use the Excel download above — it works offline too.
+            </p>
           </div>
         )}
       </div>

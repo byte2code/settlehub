@@ -200,21 +200,33 @@ export async function downloadBlob(blob: Blob, fileName: string): Promise<void> 
   if (Capacitor.isNativePlatform()) {
     try {
       const base64Data = await blobToBase64(blob);
-      const savedFile = await Filesystem.writeFile({
+
+      // Write to Documents directory (publicly visible in Files app, no FileProvider needed)
+      await Filesystem.writeFile({
         path: fileName,
         data: base64Data,
-        directory: Directory.Cache,
+        directory: Directory.Documents,
+        recursive: true,
       });
+
+      // getUri returns the content:// or file:// URI that can safely be shared
+      const uriResult = await Filesystem.getUri({
+        path: fileName,
+        directory: Directory.Documents,
+      });
+
+      const shareUri = uriResult.uri; // content:// URI on Android ≥ 7
 
       await Share.share({
         title: fileName,
         text: `SettleHub export: ${fileName}`,
-        url: savedFile.uri,
+        url: shareUri,
         dialogTitle: `Share or Save ${fileName}`,
       });
       return;
     } catch (e) {
       console.warn('Native file save/share failed, falling back to browser download', e);
+      // fall through to web download
     }
   }
 

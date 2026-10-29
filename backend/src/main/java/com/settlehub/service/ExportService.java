@@ -394,24 +394,31 @@ public class ExportService {
             String summaryText = (String) waSummary.get("summaryText");
             String fileName = group.getName().replaceAll("[^a-zA-Z0-9_-]", "_") + "_Expense_Report.xlsx";
 
+            // Try Brevo first, then Resend, then SMTP — each independently
+            String lastError = null;
+
             if (hasBrevo) {
                 boolean sent = sendBrevoEmail(recipientEmails, group.getName(), summaryText, excelBytes, fileName);
                 if (sent) {
                     return Map.of(
                             "success", true,
-                            "message", "Excel report successfully emailed to " + recipientEmails.size() + " member(s)!",
+                            "message", "Excel report emailed to " + recipientEmails.size() + " member(s) via Brevo! Check your inbox.",
                             "recipients", recipientEmails
                     );
                 }
-            } else if (hasResend) {
+                lastError = "Brevo rejected the request — check BREVO_API_KEY and that the sender email is verified in Brevo.";
+            }
+
+            if (hasResend) {
                 boolean sent = sendResendEmail(recipientEmails, group.getName(), summaryText, excelBytes, fileName);
                 if (sent) {
                     return Map.of(
                             "success", true,
-                            "message", "Excel report successfully emailed to " + recipientEmails.size() + " member(s)!",
+                            "message", "Excel report emailed to " + recipientEmails.size() + " member(s) via Resend! Check your inbox.",
                             "recipients", recipientEmails
                     );
                 }
+                lastError = "Resend rejected the request — check RESEND_API_KEY.";
             }
 
             if (hasSmtp) {
@@ -421,7 +428,7 @@ public class ExportService {
                 String from = (mailFrom != null && !mailFrom.isBlank()) ? mailFrom : "noreply@settlehub.com";
                 helper.setFrom(from, "SettleHub");
                 helper.setTo(recipientEmails.toArray(new String[0]));
-                helper.setSubject("📊 SettleHub Expense Report: " + group.getName());
+                helper.setSubject("SettleHub Expense Report: " + group.getName());
 
                 String htmlBody = buildHtmlReport(group.getName(), summaryText);
                 helper.setText(htmlBody, true);
@@ -436,16 +443,16 @@ public class ExportService {
                 );
             }
 
-            return Map.of(
-                    "success", false,
-                    "message", "Could not send the email right now. You can use direct Excel download instead!",
-                    "recipients", recipientEmails
-            );
+            // All providers attempted and failed
+            String userMsg = lastError != null
+                    ? lastError
+                    : "Could not send the email right now. Use the Excel download button instead.";
+            return Map.of("success", false, "message", userMsg, "recipients", recipientEmails);
         } catch (Exception e) {
             log.error("Failed to email report for group {}: {}", groupId, e.getMessage(), e);
             return Map.of(
                     "success", false,
-                    "message", "Could not send the email right now. You can use direct Excel download instead!",
+                    "message", "Error sending email: " + e.getMessage() + ". Use the Excel download instead.",
                     "recipients", recipientEmails
             );
         }
@@ -463,30 +470,26 @@ public class ExportService {
                 + "</div></body></html>";
     }
 
+    /**
+     * Produces a properly escaped JSON string literal.
+     * Uses Jackson ObjectMapper's writeValueAsString so that multi-codepoint characters
+     * (emoji, surrogate pairs, supplementary Unicode) are serialised correctly and the
+     * resulting payload is always valid JSON — fixing Brevo 400 errors caused by emoji
+     * in group names or the subject line.
+     */
+    private static final com.fasterxml.jackson.databind.ObjectMapper JSON_MAPPER =
+            new com.fasterxml.jackson.databind.ObjectMapper();
+
     private static String jsonString(String str) {
         if (str == null) return "null";
-        StringBuilder sb = new StringBuilder("\"");
-        for (int i = 0; i < str.length(); i++) {
-            char c = str.charAt(i);
-            switch (c) {
-                case '"' -> sb.append("\\\"");
-                case '\\' -> sb.append("\\\\");
-                case '\b' -> sb.append("\\b");
-                case '\f' -> sb.append("\\f");
-                case '\n' -> sb.append("\\n");
-                case '\r' -> sb.append("\\r");
-                case '\t' -> sb.append("\\t");
-                default -> {
-                    if (c < 32) {
-                        sb.append(String.format("\\u%04x", (int) c));
-                    } else {
-                        sb.append(c);
-                    }
-                }
-            }
+        try {
+            return JSON_MAPPER.writeValueAsString(str);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            // Extremely unlikely — fall back to manual escaping of ASCII-safe chars only
+            return "\"" + str.replaceAll("[\"\\\\]", "\\\\$0")
+                             .replace("\n", "\\n").replace("\r", "\\r")
+                             .replace("\t", "\\t") + "\"";
         }
-        sb.append("\"");
-        return sb.toString();
     }
 
     private boolean sendBrevoEmail(List<String> recipientEmails, String groupName, String summaryText,

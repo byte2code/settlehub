@@ -8,7 +8,9 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:usesCleartextTraffic="true"
-        android:theme="@style/AppTheme">
+        android:theme="@style/AppTheme"
+        xmlns:tools="http://schemas.android.com/tools"
+        tools:ignore="DataExtractionRules">
 
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
@@ -37,6 +39,12 @@
     </application>
 
     <!-- Permissions -->
-
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Required to open/share files via intent on Android 7+ without FileUriExposedException -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <!-- Needed so the OS file-picker / share sheet can receive our exported files -->
+    <uses-permission android:name="android.permission.MANAGE_DOCUMENTS"
+        tools:ignore="PermissionImpliesUnsupportedChromeOsHardware" />
+
 </manifest>
