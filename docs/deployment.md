@@ -70,7 +70,7 @@ The free plan's 0.1 CPU makes JVM start-up the slow part of waking from sleep. `
 
 ### Keeping it awake (optional)
 
-`.github/workflows/keep-warm.yml` pings `/api/v1/health` every 10 minutes once you set the repository variable `SETTLEHUB_BACKEND_URL` (e.g. `https://settlehub-backend.onrender.com`). That endpoint never touches the database, so Neon still sleeps. Only use it if:
+`.github/workflows/keep-warm.yml` pings `/api/v1/health` every 10 minutes once you set the repository variable `SETTLEHUB_BACKEND_URL` (e.g. `https://<service>.onrender.com`). That endpoint never touches the database, so Neon still sleeps. Only use it if:
 
 - this is your only free Render service (one always-on service uses ~744 of the 750 free hours), and
 - the repository is public (on a private repo the pings would use more than the 2,000 free Actions minutes).

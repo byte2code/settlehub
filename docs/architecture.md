@@ -57,7 +57,7 @@ flowchart LR
     GHA -.->|"optional ping /api/v1/health"| RENDER
 ```
 
-Nothing in this picture costs money: see the [free-tier budget](settlehub_3.0_plan.md#4-free-tier-budget).
+Nothing in this picture costs money: see the free-tier table in the [README](../README.md#-free-deployment-0month).
 
 ---
 

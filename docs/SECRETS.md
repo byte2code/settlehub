@@ -20,6 +20,6 @@ Rule: **no secret value ever goes into git.** Only names of variables are commit
 `.env.local` may hold the production `DATABASE_URL` for tooling; keep file permissions private (`chmod 600 .env.local`).
 
 ## Production rules
-- `AUTH_MASTER_OTP` and `APP_AUTH_VERIFICATION_BYPASS_EMAILS` must stay **unset** on Render. The bypass list and master OTP were the cause of account-takeover paths and are for local/test only.
+- `AUTH_MASTER_OTP` and `APP_AUTH_VERIFICATION_BYPASS_EMAILS` must stay **unset** on Render. They exist only to make local and automated testing easy; they must never be enabled in production.
 - Use long random passwords for the admin account (`openssl rand -base64 24`) and keep them in a password manager (macOS Keychain, 1Password, Bitwarden). Short memorable passwords on a production admin are the weakest link.
 - Free options that fit this project: Render environment variables / Secret Files, Neon's role password reset, GitHub Actions encrypted secrets, macOS Keychain (`security add-generic-password -s settlehub -a admin -w`).

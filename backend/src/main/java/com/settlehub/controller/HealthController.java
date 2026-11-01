@@ -7,7 +7,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.Instant;
 import java.util.Map;
 
 @RestController
@@ -26,12 +25,7 @@ public class HealthController {
      */
     @GetMapping({"/health", "/api/v1/health", "/"})
     public Map<String, Object> health() {
-        return Map.of(
-            "status", "UP",
-            "service", "settlehub-backend",
-            "version", version,
-            "timestamp", Instant.now().toString()
-        );
+        return Map.of("status", "UP", "version", version);
     }
 
     /** Readiness: verifies the database connection (wakes Neon if suspended). */
@@ -39,10 +33,10 @@ public class HealthController {
     public ResponseEntity<Map<String, Object>> ready() {
         try {
             jdbcTemplate.queryForObject("SELECT 1", Integer.class);
-            return ResponseEntity.ok(Map.of("status", "UP", "database", "UP", "version", version));
+            return ResponseEntity.ok(Map.of("status", "UP"));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                .body(Map.of("status", "DOWN", "database", "DOWN", "version", version));
+                .body(Map.of("status", "DOWN"));
         }
     }
 }

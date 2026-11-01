@@ -53,3 +53,13 @@ build/
 .neon
 !**/gradle/wrapper/gradle-wrapper.jar
 .claude/
+
+# Internal / tooling files kept locally, not published
+.agents/
+skills-lock.json
+neon.ts
+docs/HANDOFF_*.md
+docs/*_plan.md
+docs/*_architecture_review.md
+.env.*
+!.env.example

@@ -1,4 +1,4 @@
-# 💸 SettleHub 3.0 — Real-Time Group Expense Sharing
+# 💸 SettleHub 3.1 — Real-Time Group Expense Sharing
 
 [![CI](https://github.com/byte2code/settlehub/actions/workflows/ci.yml/badge.svg)](https://github.com/byte2code/settlehub/actions/workflows/ci.yml)
 [![Java](https://img.shields.io/badge/Java-21%20LTS-orange.svg)](https://adoptium.net/)
@@ -15,6 +15,7 @@
 
 ## 📑 Contents
 
+- [What's new in 3.1](#-whats-new-in-31)
 - [What's new in 3.0](#-whats-new-in-30)
 - [Features](#-features)
 - [Architecture](#️-architecture)
@@ -30,9 +31,19 @@
 
 ---
 
-## 🆕 What's new in 3.0
+## 🆕 What's new in 3.1
 
-The full audit and plan are in [`docs/settlehub_3.0_plan.md`](docs/settlehub_3.0_plan.md).
+- **Payment summary**: tap *You owe* / *You are owed* on the dashboard for a per-person breakdown across all groups, with one-tap **Pay via UPI** and a ready-made **WhatsApp reminder**. Currencies are never mixed.
+- **Activity inbox**: the bell opens a drawer with filters (all, unread, expenses, settlements), Today / Yesterday / This week / Older buckets, and *View group* / *Pay now* shortcuts. Opening a group marks its notifications as read.
+- **Background push** (optional, free): Web Push (VAPID) for browsers and installed PWAs, and Firebase Cloud Messaging on the server for Android. Web pushes carry no personal data; each channel stays off until you configure it.
+- **Profile**: emoji avatar, bio, payment-received sound (synthesised in the browser, 0 KB), live **badges** (Instant Settler, Trip MVP, Zero-Debt Master, Globetrotter), a **UPI QR code** with an amount keypad, and a shareable **Wrapped** card.
+- **Email verification**: OTP at sign-up and password reset (Brevo), with cooldowns and attempt limits.
+- **Admin portal** (restricted): platform stats and free-tier health for the operator. Access is granted only to the emails you list in `APP_ADMIN_EMAILS`.
+- **UI**: light theme by default; bottom sheets respect iOS safe areas.
+
+---
+
+## 🆕 What's new in 3.0
 
 **Security fixes (upgrade recommended)**
 - In 2.0 any logged-in user could read or change **any** group by its id. Every endpoint and live-update subscription now checks group membership; admin-only actions are enforced.
@@ -68,6 +79,9 @@ The full audit and plan are in [`docs/settlehub_3.0_plan.md`](docs/settlehub_3.0
 | **Receipts** | Photos compressed in the browser and attached to expenses. |
 | **Export** | CSV, Excel (multi-sheet `.xlsx`) and a WhatsApp summary. |
 | **Activity** | A feed of who added, edited or settled what. |
+| **Payment summary** | Per-person view of who you owe and who owes you across groups, with UPI and WhatsApp actions. |
+| **Inbox & push** | Filterable activity inbox; optional background push. |
+| **Profile** | Avatar, badges, UPI QR code, shareable yearly-style recap card. |
 | **Apps** | Installable PWA (iOS/Android/desktop) and an Android APK with hardware back button support. |
 
 ### 3.0 feature tour
@@ -134,14 +148,15 @@ settlehub/
 │   ├── Dockerfile              # CDS-trained image tuned for 0.1 CPU / 512 MB
 │   └── src/main/
 │       ├── java/com/settlehub/ # config, controller, dto, engine, model, repository, security, service
-│       └── resources/db/migration/   # Flyway: V1 (2.0 baseline), V2 (3.0)
+│       └── resources/db/migration/   # Flyway: V1 (2.0 baseline) … V7 (3.1)
 ├── frontend/
 │   ├── src/pages/              # Dashboard, GroupPage, Join, Landing
 │   ├── src/components/         # ui/, layout/, group/, modals/
 │   ├── src/hooks/              # queries (TanStack Query), live socket, auth, theme
 │   ├── src/lib/                # api, money, quick-entry parser, fx, upi, csv
 │   └── android/                # Capacitor Android project
-└── docs/                       # architecture & workflows, 3.0 plan, deployment runbook, handoff notes
+├── scripts/                    # dev-backend.sh (safe local run), local-smoke.sh (API smoke test)
+└── docs/                       # architecture, deployment runbook, secrets handling
 ```
 
 ---
@@ -266,6 +281,13 @@ Backend environment variables:
 | `APP_AUTH_RATE_LIMIT` | `10` | Login/register attempts per minute per client |
 | `APP_RECEIPT_MAX_CHARS` | `480000` | Largest receipt photo accepted (data-URL length, about 350 KB) |
 | `JWT_EXPIRATION_MS` | `2592000000` (30 days) | Session length |
+| `BREVO_API_KEY`, `BREVO_SENDER_EMAIL` | *(unset)* | Sends verification and password-reset emails (Brevo free plan: 300/day) |
+| `APP_ADMIN_EMAILS` | *(empty)* | Comma-separated emails that get admin access at sign-in |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | *(unset)* | Enables Web Push (`npx web-push generate-vapid-keys`) |
+| `FCM_SERVICE_ACCOUNT_JSON` | *(unset)* | Enables Android push via Firebase |
+| `REQUIRE_EMAIL_VERIFICATION` | `true` | Keep on in production |
+
+`AUTH_MASTER_OTP` and `APP_AUTH_VERIFICATION_BYPASS_EMAILS` are **for local testing only** and must stay unset in production. Where each secret should live: [docs/SECRETS.md](docs/SECRETS.md).
 | `PORT` | `8080` | HTTP port (Render sets this) |
 
 Frontend build variables: `VITE_API_URL`, the backend's `/api/v1` URL (defaults to `/api/v1` on the same origin), and optionally `VITE_PUBLIC_WEB_URL`, the web app's address, so invite links shared from the Android app open the website (without it the app shares just the code).
@@ -304,6 +326,8 @@ mvn spring-boot:run -Dspring-boot.run.jvmArguments=-Dapp.database-url.enabled=fa
 
 Without that flag the backend uses a `DATABASE_URL` from your shell or from a `.env.local` / `.env` file in `backend/` or the repo root, and then also needs `JWT_SECRET`. Use a [Neon branch](https://neon.tech/docs/introduction/branching) rather than your production database for this. Tests always use H2.
 
+Safer shortcut: copy `.env.example` to `.env.local`, then run `scripts/dev-backend.sh`. It always uses H2 (it ignores `DATABASE_URL`) and turns on test-friendly auth settings. With the backend running, `scripts/local-smoke.sh` exercises the main flows end to end (localhost only).
+
 ```bash
 # Frontend on http://localhost:3000; proxies /api and /ws to :8080
 cd frontend
@@ -333,7 +357,9 @@ All routes are under `/api/v1` and need `Authorization: Bearer <token>` unless m
 | `GET` | `/health` | Liveness, no database (public) |
 | `GET` | `/health/ready` | Readiness, checks the database (public) |
 | `POST` | `/auth/register`, `/auth/login` | Create account / sign in (public, rate limited) |
-| `GET` `PATCH` | `/auth/me` | Profile (name, UPI ID, default currency) |
+| `POST` | `/auth/send-otp`, `/auth/verify-otp`, `/auth/forgot-password`, `/auth/reset-password` | Email verification and password reset (public, rate limited) |
+| `GET` `PATCH` | `/auth/me` | Profile (name, UPI ID, default currency, bio, avatar, sound) |
+| `GET` | `/auth/me/badges` | Your badges, computed live |
 | `POST` | `/auth/me/password` | Change password |
 | `GET` `POST` | `/groups` | List / create groups |
 | `GET` `PUT` `DELETE` | `/groups/{id}` | Group details / settings / delete (admin) |
@@ -348,6 +374,10 @@ All routes are under `/api/v1` and need `Authorization: Bearer <token>` unless m
 | `PUT` `DELETE` | `/expenses/{id}` | Edit / delete an expense |
 | `GET` | `/expenses/{id}/receipt` | Receipt photo |
 | `GET` | `/groups/{id}/balances` | Net balances, direct and simplified debts |
+| `GET` | `/balances/me/summary` | Who you owe / who owes you across all groups |
+| `GET` | `/notifications` | Your notifications |
+| `PATCH` `POST` | `/notifications/{id}/read`, `/notifications/read-all`, `/notifications/groups/{id}/read` | Mark notifications read |
+| `GET` `POST` `DELETE` | `/push/config`, `/push/subscriptions` | Background push registration |
 | `GET` | `/groups/{id}/settlements` | Payment history |
 | `POST` | `/settlements` | Record a payment |
 | `DELETE` | `/settlements/{id}` | Undo a payment |
@@ -359,10 +389,15 @@ All routes are under `/api/v1` and need `Authorization: Bearer <token>` unless m
 
 ## 🛡️ Security
 
+To report a vulnerability, please use GitHub's private vulnerability reporting (see [SECURITY.md](SECURITY.md)) instead of a public issue.
+
 - Every group endpoint and WebSocket subscription checks membership; admin actions check the role.
 - Stateless JWT (HMAC-SHA256) with a required, private secret in production; no secret in the repository.
 - Rate-limited login and registration; passwords hashed with BCrypt, 8 characters minimum.
 - CORS limited to known origins (Cloudflare Pages, localhost, the Android WebView, and whatever you add).
+- Email OTP for sign-up and password reset: hashed codes, expiry, attempt limits and cooldowns.
+- Admin access comes only from server configuration (`APP_ADMIN_EMAILS`), never from request data, and is re-checked on every request.
+- Server-side input validation; outbound push requests only go to known push services.
 - TLS to the database (`sslmode=require`); `.env*` files are gitignored and excluded from Docker builds.
 
 ---
