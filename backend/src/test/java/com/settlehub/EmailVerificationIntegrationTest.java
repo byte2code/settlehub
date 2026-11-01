@@ -85,10 +85,15 @@ class EmailVerificationIntegrationTest extends ApiTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
 
-        // 2. Reset password for test domain user succeeds
+        // 2. A wrong code is rejected even for a test-domain account
+        perform(post("/api/v1/auth/reset-password"), null, Map.of(
+                "email", user.email(), "otp", "123456", "newPassword", "newPassword456"))
+                .andExpect(status().isBadRequest());
+
+        // 3. The dev master code (test config only) succeeds
         JsonNode resetRes = json(perform(post("/api/v1/auth/reset-password"), null, Map.of(
                 "email", user.email(),
-                "otp", "123456",
+                "otp", "000000",
                 "newPassword", "newPassword456"
         ))
                 .andExpect(status().isOk())
@@ -97,7 +102,7 @@ class EmailVerificationIntegrationTest extends ApiTestSupport {
 
         assertNotNull(resetRes.get("token").asString());
 
-        // 3. Login with newly reset password succeeds
+        // 4. Login with newly reset password succeeds
         perform(post("/api/v1/auth/login"), null, Map.of(
                 "email", user.email(),
                 "password", "newPassword456"
@@ -105,5 +110,17 @@ class EmailVerificationIntegrationTest extends ApiTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.token").isString());
     }
-}
 
+    @Test
+    @DisplayName("Whitelisted accounts cannot reset their password without a valid code")
+    void bypassAccountCannotResetWithoutCode() throws Exception {
+        register("Test One", "test1@settlehub.com");
+
+        perform(post("/api/v1/auth/reset-password"), null, Map.of(
+                "email", "test1@settlehub.com", "otp", "anything", "newPassword", "hijacked123"))
+                .andExpect(status().isBadRequest());
+        perform(post("/api/v1/auth/reset-password"), null, Map.of(
+                "email", "test1@settlehub.com", "otp", "000000", "newPassword", "hijacked123"))
+                .andExpect(status().isBadRequest());
+    }
+}

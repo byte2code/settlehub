@@ -20,7 +20,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /** Shared helpers for API-level tests against the in-memory H2 database. */
 @SpringBootTest(properties = {
     "app.rate-limit.auth-requests-per-minute=10000",
-    "app.auth.test-domains=example.com"
+    "app.auth.test-domains=example.com",
+    "app.auth.verification-bypass-emails=admin@settlehub.com,test1@settlehub.com,test2@settlehub.com,test3@settlehub.com",
+    "app.auth.master-otp=000000"
 })
 @AutoConfigureMockMvc
 abstract class ApiTestSupport {
