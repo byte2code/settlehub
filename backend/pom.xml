@@ -12,7 +12,7 @@
 
     <groupId>com.settlehub</groupId>
     <artifactId>settlehub-backend</artifactId>
-    <version>3.0.0</version>
+    <version>3.1.0</version>
     <name>settlehub-backend</name>
     <description>SettleHub Expense Sharing &amp; Debt Minimization Platform</description>
 
