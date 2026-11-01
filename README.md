@@ -24,6 +24,7 @@
 - [Mobile apps](#-mobile-apps)
 - [Free deployment ($0/month)](#-free-deployment-0month)
 - [Configuration](#️-configuration)
+- [Upgrading from 3.0](#-upgrading-from-30)
 - [Upgrading from 2.0](#️-upgrading-from-20)
 - [Local development](#-local-development)
 - [API reference](#-api-reference)
@@ -136,13 +137,15 @@ flowchart TD
 | Frontend | React 19, TypeScript, Vite, Tailwind CSS v4, React Router, TanStack Query |
 | PWA | `vite-plugin-pwa` (Workbox): precached app shell, API never cached, update prompt |
 | Mobile | Capacitor 8 (Android) |
-| Tests | JUnit + MockMvc (backend), Vitest (frontend), both in CI |
+| Tests | JUnit + MockMvc (55 backend tests on H2), Vitest (28 frontend tests), both in CI; `scripts/local-smoke.sh` for end-to-end checks against a local backend |
 
 ### Project layout
 
 ```text
 settlehub/
-├── render.yaml                 # Render Blueprint (backend; database is Neon)
+├── render.yaml                 # Render Blueprint (backend; database is Neon). Secrets are names only
+├── .env.example                # template for local settings (copy to .env.local, gitignored)
+├── SECURITY.md                 # how to report a vulnerability
 ├── .github/workflows/          # ci.yml, release-apk.yml, keep-warm.yml
 ├── backend/
 │   ├── Dockerfile              # CDS-trained image tuned for 0.1 CPU / 512 MB
@@ -150,10 +153,11 @@ settlehub/
 │       ├── java/com/settlehub/ # config, controller, dto, engine, model, repository, security, service
 │       └── resources/db/migration/   # Flyway: V1 (2.0 baseline) … V7 (3.1)
 ├── frontend/
-│   ├── src/pages/              # Dashboard, GroupPage, Join, Landing
-│   ├── src/components/         # ui/, layout/, group/, modals/
+│   ├── src/pages/              # Dashboard, GroupPage, Join, Landing, Admin (restricted)
+│   ├── src/components/         # ui/ (Modal, Drawer), layout/, group/, modals/, notifications/, profile/
 │   ├── src/hooks/              # queries (TanStack Query), live socket, auth, theme
-│   ├── src/lib/                # api, money, quick-entry parser, fx, upi, csv
+│   ├── src/lib/                # api, money, quick-entry parser, fx, upi, csv, push, chime, keypad, wrapped
+│   ├── public/push-sw.js       # service-worker push handler (no payload)
 │   └── android/                # Capacitor Android project
 ├── scripts/                    # dev-backend.sh (safe local run), local-smoke.sh (API smoke test)
 └── docs/                       # architecture, deployment runbook, secrets handling
@@ -300,6 +304,17 @@ GitHub repository settings used by the workflows:
 | `SETTLEHUB_WEB_URL` | variable | `release-apk.yml`: web app address used for invite links in the APK (optional) |
 | `SETTLEHUB_BACKEND_URL` | variable | `keep-warm.yml`: enables the keep-warm ping (optional) |
 | `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` | secrets | `release-apk.yml`: sign the APK with your own key so updates install over each other (recommended) |
+
+---
+
+## ⬆️ Upgrading from 3.0
+
+1. Deploy as usual. Flyway applies **V3–V7** on start (notifications, email verification, push subscriptions, profile and admin columns); nothing is deleted.
+2. Set `BREVO_API_KEY` (and `BREVO_SENDER_EMAIL`) on the backend. Sign-up and password reset now require an emailed code, so without a key nobody can receive one. Leave `AUTH_MASTER_OTP` and `APP_AUTH_VERIFICATION_BYPASS_EMAILS` **unset** in production.
+3. Optional: set `APP_ADMIN_EMAILS` to enable the admin portal for those accounts, and the `VAPID_*` / `FCM_SERVICE_ACCOUNT_JSON` variables to enable background push.
+4. Existing accounts keep working; they pick up avatar, bio and sound settings the next time they edit their profile.
+
+Known limits in 3.1: background push on the Android APK is not wired yet (the server side supports FCM; the app needs a Firebase `google-services.json`), and push on iOS works only for a PWA added to the Home Screen.
 
 ---
 
