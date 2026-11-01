@@ -308,3 +308,23 @@ export interface RecurringExpense {
   active: boolean;
   pausedReason?: string | null;
 }
+
+export interface MonthTotal {
+  month: string;
+  totalCents: number;
+  byCategory: Record<string, number>;
+}
+
+export interface CurrencyInsights {
+  currency: string;
+  totalCents: number;
+  averagePerMonthCents: number;
+  topCategory: string | null;
+  months: MonthTotal[];
+}
+
+export interface Insights {
+  months: number;
+  timeZone: string;
+  currencies: CurrencyInsights[];
+}

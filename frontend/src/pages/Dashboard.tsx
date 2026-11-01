@@ -1,6 +1,6 @@
 import { lazy, Suspense, useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { Archive, ArrowRight, KeyRound, Plus, RefreshCw, TrendingDown, TrendingUp, Users } from 'lucide-react';
+import { Archive, ArrowRight, BarChart3, Heart, KeyRound, Plus, RefreshCw, TrendingDown, TrendingUp, Users } from 'lucide-react';
 import { budgetStatus } from '../lib/groups';
 import { errorMessage } from '../lib/errors';
 import { formatMoney, sumByCurrency } from '../lib/money';
@@ -13,6 +13,8 @@ import { GroupTypeIcon } from '../components/ui/GroupTypeIcon';
 
 const CreateGroupModal = lazy(() => import('../components/modals/CreateGroupModal'));
 const JoinGroupModal = lazy(() => import('../components/modals/JoinGroupModal'));
+const FriendSplitModal = lazy(() => import('../components/modals/FriendSplitModal'));
+const InsightsModal = lazy(() => import('../components/modals/InsightsModal'));
 const PaymentDetailDrawer = lazy(() => import('../components/modals/PaymentDetailDrawer'));
 
 function Totals({ totals, tone }: { totals: Record<string, number>; tone: 'pos' | 'neg' }) {
@@ -34,7 +36,7 @@ export function Dashboard() {
   const t = useCopy();
   const { data: groups = [], isLoading, error, refetch, isFetching } = useGroups();
   const [tab, setTab] = useState<'active' | 'archived'>('active');
-  const [modal, setModal] = useState<'create' | 'join' | null>(null);
+  const [modal, setModal] = useState<'create' | 'join' | 'friend' | 'insights' | null>(null);
   const [drawer, setDrawer] = useState<'owe' | 'owed' | null>(null);
 
   // Balances in different currencies are never added together
@@ -85,6 +87,8 @@ export function Dashboard() {
             <button className="btn-ghost p-2" onClick={() => refetch()} aria-label="Refresh" title="Refresh">
               <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
             </button>
+            <button className="btn-secondary" onClick={() => setModal('friend')}><Heart className="h-3.5 w-3.5" /> <span className="hidden sm:inline">With a</span> friend</button>
+            <button className="btn-secondary" onClick={() => setModal('insights')} aria-label="Spending insights"><BarChart3 className="h-3.5 w-3.5" /><span className="hidden sm:inline"> Insights</span></button>
             <button className="btn-secondary" onClick={() => setModal('join')}><KeyRound className="h-3.5 w-3.5" /> Join</button>
             <button className="btn-primary" onClick={() => setModal('create')}><Plus className="h-4 w-4" /> New group</button>
           </div>
@@ -112,6 +116,8 @@ export function Dashboard() {
       <Suspense fallback={null}>
         {modal === 'create' && <CreateGroupModal open onClose={() => setModal(null)} />}
         {modal === 'join' && <JoinGroupModal open onClose={() => setModal(null)} />}
+        {modal === 'friend' && <FriendSplitModal onClose={() => setModal(null)} />}
+        {modal === 'insights' && <InsightsModal onClose={() => setModal(null)} />}
         {drawer && <PaymentDetailDrawer key={drawer} open initialTab={drawer} onClose={() => setDrawer(null)} />}
       </Suspense>
     </div>

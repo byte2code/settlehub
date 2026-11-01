@@ -15,6 +15,7 @@
 
 ## 📑 Contents
 
+- [What's new in 4.0](#-whats-new-in-40)
 - [What's new in 3.1](#-whats-new-in-31)
 - [What's new in 3.0](#-whats-new-in-30)
 - [Features](#-features)
@@ -24,7 +25,7 @@
 - [Mobile apps](#-mobile-apps)
 - [Free deployment ($0/month)](#-free-deployment-0month)
 - [Configuration](#️-configuration)
-- [Upgrading from 3.0](#-upgrading-from-30)
+- [Upgrading from 3.0](#️-upgrading-from-30--31)
 - [Upgrading from 2.0](#️-upgrading-from-20)
 - [Local development](#-local-development)
 - [API reference](#-api-reference)
@@ -32,13 +33,25 @@
 
 ---
 
-## 🆕 Coming next: the "delight" release
+## 🆕 What's new in 4.0
 
-- **Fun mode** (profile switch): playful wording, confetti when you settle up or clear a group, and light vibration on Android. Your phone's *reduce motion* setting always wins, and sounds are off until you pick one.
-- **Who pays tonight?**: a fair, just-for-fun spin or coin flip in every group. People who have paid less are a bit likelier to be picked.
-- **Faster expense form**: receipt photo right under the amount, category up front, date and notes tucked under *More details*, and a mini calculator in the amount field (`500+250`, `1.5k`).
-- **Undo delete**: removing an expense can be undone for a few seconds.
-- The server picker is no longer shown to everyday users; admins find it in the Admin portal, and dev builds can enable it with `VITE_ENABLE_SERVER_CONFIG=true`.
+**Fun, but optional**
+- **Fun mode** (Profile → *On this device*): playful wording, confetti when you settle up or clear a group, light vibration on Android. Your phone's *reduce motion* setting always wins; sounds are off until you pick one.
+- **Who pays tonight?**: a fair, just-for-fun spin or coin flip in every group; people who've paid less are a bit likelier to be picked.
+- **Reactions and comments** on expenses (a fixed set of emoji, plain-text comments), and **trip awards** (Biryani Baron, Chai Sponsor, Fastest Payer, Ghost of the Trip, Receipt Hoarder) that a group admin reveals and anyone can share as an image.
+
+**Faster to use**
+- Expense form: receipt photo under the amount, a calculator in the amount field (`500+250`, `1.5k`), date/repeat/notes under *More details*, and **undo** for deletes.
+- **Say it**: a mic button turns "Dinner fifteen hundred paid by Rohan" into a filled form (browser speech; hidden where unsupported).
+- **Scan a receipt**: after you attach a photo, SettleHub reads it **on your device** and asks *"We found these details. Fill them in?"*. It never saves by itself, never uploads the photo for this, and says so when it can't read it.
+- **Works offline**: expenses you add without a connection wait on the device and sync when you're back, with no duplicates.
+- **Repeating expenses** (weekly or monthly, e.g. rent), **split with a friend** in one step, and **spending insights** (your share by month and category).
+- **Payment confirmation**: a payment you record yourself shows as *awaiting confirmation* until the person who received it confirms (or says it never arrived). Balances count it immediately.
+
+**Account and safety**
+- **Sign out other devices**, **download my data**, **delete my account** (anonymizes you, keeps other people's balances correct, refuses while you're unsettled), and a [privacy page](frontend/src/pages/Privacy.tsx).
+- Optional **Google sign-in** (off unless configured), per-group **receipt storage limits**, and a token-protected maintenance endpoint for external schedulers.
+- CodeQL, Dependabot and an end-to-end smoke workflow run in CI.
 
 ---
 
@@ -147,7 +160,7 @@ flowchart TD
 | Frontend | React 19, TypeScript, Vite, Tailwind CSS v4, React Router, TanStack Query |
 | PWA | `vite-plugin-pwa` (Workbox): precached app shell, API never cached, update prompt |
 | Mobile | Capacitor 8 (Android) |
-| Tests | JUnit + MockMvc (56 backend tests on H2), Vitest (42 frontend tests), both in CI; `scripts/local-smoke.sh` for end-to-end checks against a local backend |
+| Tests | JUnit + MockMvc (77 backend tests on H2), Vitest (65 frontend tests), both in CI; `scripts/local-smoke.sh` for end-to-end checks against a local backend |
 
 ### Project layout
 
@@ -300,6 +313,10 @@ Backend environment variables:
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | *(unset)* | Enables Web Push (`npx web-push generate-vapid-keys`) |
 | `FCM_SERVICE_ACCOUNT_JSON` | *(unset)* | Enables Android push via Firebase |
 | `REQUIRE_EMAIL_VERIFICATION` | `true` | Keep on in production |
+| `MAINTENANCE_TOKEN` | *(unset)* | Secret for `/api/v1/internal/maintenance/*` (purge old data, run repeating expenses). Call it from UptimeRobot or a GitHub Actions cron. Unset = endpoints off |
+| `GOOGLE_CLIENT_ID` | *(unset)* | Enables Google sign-in (also set `VITE_GOOGLE_CLIENT_ID` when building the frontend) |
+| `APP_RECEIPT_GROUP_MAX_CHARS` | `15000000` | Receipt storage cap per group (about 11 MB) |
+| `APP_RECEIPT_RETENTION_DAYS` | `365` | Receipt photos older than this are removed by the purge job (`0` disables) |
 
 `AUTH_MASTER_OTP` and `APP_AUTH_VERIFICATION_BYPASS_EMAILS` are **for local testing only** and must stay unset in production. Where each secret should live: [docs/SECRETS.md](docs/SECRETS.md).
 | `PORT` | `8080` | HTTP port (Render sets this) |
@@ -317,12 +334,20 @@ GitHub repository settings used by the workflows:
 
 ---
 
-## ⬆️ Upgrading from 3.0
+## ⬆️ Upgrading from 3.0 / 3.1
+
+Flyway applies the new migrations (V8–V12) on start. They are all additive, so rolling the backend back keeps working. Existing sessions stay valid until a user signs out other devices or changes their password. Existing payments are treated as confirmed.
+
+Optional new settings: `MAINTENANCE_TOKEN` (and a scheduler that calls the maintenance endpoints), `GOOGLE_CLIENT_ID`. Android users need a new APK to get the 4.0 screens; the web app and PWA update on their own.
+
+### From 3.0
 
 1. Deploy as usual. Flyway applies **V3–V7** on start (notifications, email verification, push subscriptions, profile and admin columns); nothing is deleted.
 2. Set `BREVO_API_KEY` (and `BREVO_SENDER_EMAIL`) on the backend. Sign-up and password reset now require an emailed code, so without a key nobody can receive one. Leave `AUTH_MASTER_OTP` and `APP_AUTH_VERIFICATION_BYPASS_EMAILS` **unset** in production.
 3. Optional: set `APP_ADMIN_EMAILS` to enable the admin portal for those accounts, and the `VAPID_*` / `FCM_SERVICE_ACCOUNT_JSON` variables to enable background push.
 4. Existing accounts keep working; they pick up avatar, bio and sound settings the next time they edit their profile.
+
+Known limits in 4.0: voice entry and receipt scanning work in the browser/PWA (voice is unavailable in the Android app's WebView); offline mode covers adding expenses only; repeating expenses use UTC calendar dates; passkeys are not implemented.
 
 Known limits in 3.1: background push on the Android APK is not wired yet (the server side supports FCM; the app needs a Firebase `google-services.json`), and push on iOS works only for a PWA added to the Home Screen.
 
@@ -399,6 +424,14 @@ All routes are under `/api/v1` and need `Authorization: Bearer <token>` unless m
 | `PUT` `DELETE` | `/expenses/{id}` | Edit / delete an expense |
 | `GET` | `/expenses/{id}/receipt` | Receipt photo |
 | `GET` | `/groups/{id}/balances` | Net balances, direct and simplified debts |
+| `PUT` `GET` `POST` `DELETE` | `/expenses/{id}/reactions`, `/expenses/{id}/comments`, `/comments/{id}` | Reactions and comments |
+| `GET` | `/groups/{id}/engagement` | Reaction and comment counts for a group's expenses |
+| `GET` `POST` `DELETE` | `/groups/{id}/awards`, `/groups/{id}/awards/reveal` | Trip awards (admin reveals) |
+| `GET` `POST` `DELETE` | `/groups/{id}/recurring`, `/groups/{id}/recurring/run`, `/recurring/{id}` | Repeating expenses |
+| `POST` | `/settlements/{id}/confirm`, `/settlements/{id}/reject` | Receiver confirms or rejects a payment |
+| `GET` | `/insights/me` | Your spending by month and category |
+| `GET` `DELETE` `POST` | `/auth/me/export`, `/auth/me`, `/auth/me/sessions/revoke-others` | Download data, delete account, sign out other devices |
+| `POST` | `/auth/google` | Google sign-in (when configured) |
 | `GET` | `/balances/me/summary` | Who you owe / who owes you across all groups |
 | `GET` | `/notifications` | Your notifications |
 | `PATCH` `POST` | `/notifications/{id}/read`, `/notifications/read-all`, `/notifications/groups/{id}/read` | Mark notifications read |

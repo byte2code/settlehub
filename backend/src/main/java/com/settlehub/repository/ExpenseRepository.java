@@ -74,4 +74,11 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
 
     @Query("SELECT e FROM Expense e WHERE e.group.id = :groupId AND e.clientId = :clientId")
     Optional<Expense> findByGroupAndClientId(@Param("groupId") UUID groupId, @Param("clientId") UUID clientId);
+
+    /** Rows of [date, category, currencyCode, owedCents]: the user's own shares of active expenses since a date. */
+    @Query("""
+        SELECT e.date, e.category, e.currencyCode, s.owedCents FROM ExpenseSplit s JOIN s.expense e
+        WHERE s.user.id = :userId AND e.deletedAt IS NULL AND e.isPayment = false AND e.date >= :from
+        """)
+    List<Object[]> shareRowsSince(@Param("userId") UUID userId, @Param("from") java.time.Instant from);
 }

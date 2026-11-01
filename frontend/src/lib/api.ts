@@ -2,6 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import type {
+  Insights,
   RecurringExpense,
   AwardsResponse,
   Engagement,
@@ -202,6 +203,7 @@ export const api = {
     request<RecurringExpense>('POST', `/groups/${groupId}/recurring`, data),
   deleteRecurring: (id: string) => request<{ success: boolean }>('DELETE', `/recurring/${id}`),
   runRecurring: (groupId: string) => request<{ generated: number }>('POST', `/groups/${groupId}/recurring/run`),
+  insights: (months = 6) => request<Insights>('GET', `/insights/me?months=${months}&tz=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`),
   confirmSettlement: (id: string) => request<Settlement>('POST', `/settlements/${id}/confirm`),
   rejectSettlement: (id: string) => request<{ success: boolean }>('POST', `/settlements/${id}/reject`),
   engagement: (groupId: string) => request<Record<string, Engagement>>('GET', `/groups/${groupId}/engagement`),
