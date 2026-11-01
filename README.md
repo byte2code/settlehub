@@ -347,7 +347,7 @@ Optional new settings: `MAINTENANCE_TOKEN` (and a scheduler that calls the maint
 3. Optional: set `APP_ADMIN_EMAILS` to enable the admin portal for those accounts, and the `VAPID_*` / `FCM_SERVICE_ACCOUNT_JSON` variables to enable background push.
 4. Existing accounts keep working; they pick up avatar, bio and sound settings the next time they edit their profile.
 
-Known limits in 4.0: voice entry and receipt scanning work in the browser/PWA (voice is unavailable in the Android app's WebView); offline mode covers adding expenses only; repeating expenses use UTC calendar dates; passkeys are not implemented.
+Known limits in 4.0: receipt scanning runs on the device everywhere; voice entry uses the browser's speech service on the web and the phone's own recognizer in the Android app (it asks for the microphone, and needs an internet connection); offline mode covers adding expenses only; repeating expenses use UTC calendar dates; passkeys are not implemented.
 
 Known limits in 3.1: background push on the Android APK is not wired yet (the server side supports FCM; the app needs a Firebase `google-services.json`), and push on iOS works only for a PWA added to the Home Screen.
 

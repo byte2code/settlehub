@@ -32,7 +32,7 @@ export function readReceipt(file: Blob, onProgress?: (fraction: number) => void)
       workerPath: '/ocr/worker.min.js',
       corePath: '/ocr',
       langPath: '/ocr/lang',
-      gzip: true,
+      gzip: false, // the model is shipped uncompressed (see scripts/copy-ocr-assets.mjs)
       logger: (m: { status?: string; progress?: number }) => {
         if (m.status === 'recognizing text' && typeof m.progress === 'number') onProgress?.(m.progress);
       },
