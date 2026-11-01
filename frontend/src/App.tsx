@@ -6,6 +6,7 @@ import { useGlobalNotifications } from './hooks/useGlobalNotifications';
 import { Navbar } from './components/layout/Navbar';
 import { WakeBanner } from './components/layout/WakeBanner';
 import { UpdatePrompt } from './components/layout/UpdatePrompt';
+import { OutboxBanner } from './components/layout/OutboxBanner';
 import { InAppNotificationBanner } from './components/notifications/InAppNotificationBanner';
 import { PageSpinner } from './components/ui/bits';
 import { Landing } from './pages/Landing';
@@ -37,6 +38,7 @@ export default function App() {
     <div className="flex min-h-screen flex-col bg-app text-fg">
       <InAppNotificationBanner />
       <WakeBanner />
+      <OutboxBanner />
       <Navbar onSignIn={() => openAuth()} />
       <main className="flex-1">
         {loading ? (

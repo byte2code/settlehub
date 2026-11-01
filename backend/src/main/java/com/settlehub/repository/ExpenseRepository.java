@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -70,4 +71,7 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
 
     @Query("SELECT e.id FROM Expense e WHERE e.group.id = :groupId AND e.deletedAt IS NULL AND e.isPayment = false")
     List<UUID> findActiveIdsByGroupId(@Param("groupId") UUID groupId);
+
+    @Query("SELECT e FROM Expense e WHERE e.group.id = :groupId AND e.clientId = :clientId")
+    Optional<Expense> findByGroupAndClientId(@Param("groupId") UUID groupId, @Param("clientId") UUID clientId);
 }

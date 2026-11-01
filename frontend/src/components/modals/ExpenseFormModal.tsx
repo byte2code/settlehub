@@ -12,6 +12,7 @@ import { evalAmount, isExpression } from '../../lib/calc';
 import { copy } from '../../lib/copy';
 import { haptic } from '../../lib/haptics';
 import { useSpeech, type SpeechError } from '../../hooks/useSpeech';
+import { enqueue, isOfflineError } from '../../lib/outbox';
 import { validateSplit } from '../../lib/split';
 import { useInvalidateGroup } from '../../hooks/queries';
 import { useCurrentUser } from '../../hooks/useAuth';
@@ -71,6 +72,8 @@ function initialState(group: Group, userId: string, expense?: Expense | null, in
   };
 }
 
+const isUuid = (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+
 /** "500+250" or "1.5k" become their total; anything else is left as typed. */
 function resolveAmount(text: string): string {
   if (!isExpression(text)) return text;
@@ -94,6 +97,8 @@ export default function ExpenseFormModal({ group, expense, initialPayerId, onClo
   );
   const [rateStatus, setRateStatus] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<ReceiptState>(expense?.hasReceipt ? { kind: 'keep' } : { kind: 'none' });
+  // One id per form: a retry or a later sync of the same expense can never create a duplicate
+  const [clientId] = useState(() => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`.replace(/\./g, '')));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -201,6 +206,7 @@ export default function ExpenseFormModal({ group, expense, initialPayerId, onClo
             ? ids.map((id) => ({ userId: id, owedCents: cents(form.exactAmounts[id]) })).filter((s) => s.owedCents > 0)
             : ids.map((id) => ({ userId: id, percentage: Number(form.percentages[id]) || 0 })).filter((s) => s.percentage > 0),
       receiptUrl: receipt.kind === 'new' ? receipt.dataUrl : receipt.kind === 'none' ? (editing ? '' : null) : undefined,
+      ...(editing || !isUuid(clientId) ? {} : { clientId }),
     };
 
     try {
@@ -211,7 +217,17 @@ export default function ExpenseFormModal({ group, expense, initialPayerId, onClo
       void haptic('success');
       onClose();
     } catch (err) {
-      setError(errorMessage(err, 'Could not save the expense'));
+      if (!editing && isOfflineError(err) && isUuid(clientId)) {
+        const stored = enqueue({ clientId, userId: user.id, groupId: group.id, groupName: group.name, payload, queuedAt: new Date().toISOString() });
+        if (stored) {
+          toast.info('You’re offline. Saved on this device. It will sync when you’re back.');
+          onClose();
+          return;
+        }
+        setError('You’re offline and this device has no room left to hold it. Try again when you’re connected.');
+      } else {
+        setError(errorMessage(err, 'Could not save the expense'));
+      }
     } finally {
       setSaving(false);
     }

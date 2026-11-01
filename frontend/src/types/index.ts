@@ -99,6 +99,8 @@ export interface ExpenseInput {
   notes?: string | null;
   originalCurrency?: string | null;
   originalAmountCents?: number | null;
+  /** Idempotency key: retrying the same create returns the original expense. */
+  clientId?: string;
 }
 
 export interface DebtRepayment {

@@ -163,4 +163,24 @@ class FeatureIntegrationTest extends ApiTestSupport {
         assertEquals(-2000, netBalance(alice, groupId, bob));
         assertEquals(2000, netBalance(alice, groupId, alice));
     }
+
+    @Test
+    @DisplayName("Retrying a create with the same clientId returns the original expense instead of a duplicate")
+    void createIsIdempotent() throws Exception {
+        TestUser alice = register("Alice");
+        UUID groupId = createGroup(alice, "Offline trip", List.of());
+        String clientId = UUID.randomUUID().toString();
+        Map<String, Object> body = Map.of("description", "Chai", "costCents", 4000, "creationMethod", "EQUAL", "clientId", clientId,
+            "splits", List.of(Map.of("userId", alice.id().toString())));
+
+        String first = json(perform(post("/api/v1/groups/" + groupId + "/expenses"), alice, body).andExpect(status().isCreated())).get("id").asString();
+        String second = json(perform(post("/api/v1/groups/" + groupId + "/expenses"), alice, body).andExpect(status().isCreated())).get("id").asString();
+        assertEquals(first, second);
+        assertEquals(1, json(perform(get("/api/v1/groups/" + groupId + "/expenses"), alice, null)).size());
+
+        // a different id is a different expense
+        perform(post("/api/v1/groups/" + groupId + "/expenses"), alice, Map.of("description", "Chai", "costCents", 4000, "creationMethod", "EQUAL",
+            "clientId", UUID.randomUUID().toString(), "splits", List.of(Map.of("userId", alice.id().toString())))).andExpect(status().isCreated());
+        assertEquals(2, json(perform(get("/api/v1/groups/" + groupId + "/expenses"), alice, null)).size());
+    }
 }

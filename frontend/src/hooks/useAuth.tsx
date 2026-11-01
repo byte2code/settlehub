@@ -70,6 +70,11 @@ export function useAuth(): AuthContextValue {
 
 /** For screens that only render when signed in. */
 // eslint-disable-next-line react-refresh/only-export-components
+export function useCurrentUserOrNull(): User | null {
+  return useAuth().user;
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
 export function useCurrentUser(): User {
   const { user } = useAuth();
   if (!user) throw new Error('No signed-in user');

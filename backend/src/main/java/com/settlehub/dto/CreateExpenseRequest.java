@@ -53,7 +53,10 @@ public record CreateExpenseRequest(
     String originalCurrency,
 
     @Positive(message = "Original amount must be positive")
-    Long originalAmountCents
+    Long originalAmountCents,
+
+    /** Client-generated id so a retried create (offline sync, double tap) returns the original expense instead of a duplicate. */
+    UUID clientId
 ) {
     public CreateExpenseRequest(
         String description,
@@ -64,7 +67,7 @@ public record CreateExpenseRequest(
         List<PayerRequest> payers,
         List<SplitRequest> splits
     ) {
-        this(description, costCents, currencyCode, date, "OTHER", null, creationMethod, payers, splits, null, null, null);
+        this(description, costCents, currencyCode, date, "OTHER", null, creationMethod, payers, splits, null, null, null, null);
     }
 
     public record PayerRequest(

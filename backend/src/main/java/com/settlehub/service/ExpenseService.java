@@ -70,12 +70,17 @@ public class ExpenseService {
     @Transactional
     public ExpenseDto createExpense(UUID groupId, UUID currentUserId, CreateExpenseRequest request) {
         GroupMember me = access.requireMember(groupId, currentUserId);
+        if (request.clientId() != null) {
+            Optional<Expense> already = expenseRepository.findByGroupAndClientId(groupId, request.clientId());
+            if (already.isPresent()) return ExpenseDto.fromEntity(already.get()); // a retry: hand back the original
+        }
         Group group = me.getGroup();
         Map<UUID, User> members = membersById(groupId);
 
         Expense expense = new Expense(group, request.description().trim(), request.costCents(), group.getCurrencyCode(),
             request.date(), "EQUAL", false, me.getUser());
         apply(expense, group, members, me.getUser(), request);
+        expense.setClientId(request.clientId());
         Expense saved = expenseRepository.save(expense);
         saveReceipt(saved, request.receiptUrl());
 

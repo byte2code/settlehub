@@ -60,10 +60,10 @@ public class DataInitializer {
                 new CreateExpenseRequest.SplitRequest(bob.getId(), null, null));
             expenseService.createExpense(trip.id(), alice.getId(), new CreateExpenseRequest(
                 "Beach shack dinner", 240_000L, "INR", Instant.now().minus(1, ChronoUnit.DAYS), "FOOD", null, "EQUAL",
-                null, both, null, null, null));
+                null, both, null, null, null, null));
             expenseService.createExpense(trip.id(), bob.getId(), new CreateExpenseRequest(
                 "Scooter rental", 120_000L, "INR", Instant.now(), "TRANSPORT", null, "EQUAL",
-                null, both, "2 scooters x 2 days", null, null));
+                null, both, "2 scooters x 2 days", null, null, null));
             log.info("Seeded demo data: alice@settlehub.com / bob@settlehub.com (password: password123)");
         };
     }

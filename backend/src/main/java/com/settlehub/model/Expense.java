@@ -74,6 +74,9 @@ public class Expense {
 
     private Instant deletedAt; // Soft-delete support
 
+    @Column(name = "client_id")
+    private UUID clientId;
+
     public Expense() {}
 
     public Expense(Group group, String description, Long costCents, String currencyCode,
@@ -130,6 +133,9 @@ public class Expense {
 
     public Long getOriginalAmountCents() { return originalAmountCents; }
     public void setOriginalAmountCents(Long originalAmountCents) { this.originalAmountCents = originalAmountCents; }
+
+    public UUID getClientId() { return clientId; }
+    public void setClientId(UUID clientId) { this.clientId = clientId; }
 
     public boolean hasReceipt() { return hasReceipt; }
     public void setHasReceipt(boolean hasReceipt) { this.hasReceipt = hasReceipt; }
