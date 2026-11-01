@@ -16,6 +16,7 @@ import { ExpenseList } from '../components/group/ExpenseList';
 import { SettlementList } from '../components/group/SettlementList';
 import { StatsPanel } from '../components/group/StatsPanel';
 import { AwardsPanel } from '../components/group/AwardsPanel';
+import { RecurringPanel } from '../components/group/RecurringPanel';
 import { ErrorNote, PageSpinner } from '../components/ui/bits';
 import { GroupTypeIcon } from '../components/ui/GroupTypeIcon';
 import { useConfirm } from '../components/ui/ConfirmDialog';
@@ -88,6 +89,12 @@ export function GroupPage() {
     },
     [groupId, user.id, queryClient, invalidate, navigate, toast],
   );
+  useEffect(() => {
+    // Create any repeating expenses that came due (idempotent, so safe on every open)
+    if (!groupId) return;
+    api.runRecurring(groupId).then((r) => { if (r.generated > 0) void invalidate(groupId); }).catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupId]);
   useEffect(() => {
     if (groupId) markGroupRead(groupId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -229,6 +236,7 @@ export function GroupPage() {
           ))}
         </div>
 
+        {tab === 'expenses' && <RecurringPanel group={group} />}
         {tab === 'expenses' && (
           <ExpenseList
             expenses={expenses}

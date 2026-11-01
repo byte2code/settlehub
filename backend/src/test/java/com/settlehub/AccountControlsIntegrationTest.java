@@ -163,6 +163,21 @@ class AccountControlsIntegrationTest extends ApiTestSupport {
     }
 
     @Test
+    @DisplayName("The scheduler endpoint creates due repeating expenses (needs the secret)")
+    void runRecurringViaScheduler() throws Exception {
+        TestUser alice = register("Alice");
+        TestUser bob = register("Bob");
+        UUID group = createGroup(alice, "Flat", List.of(bob.email()));
+        perform(post("/api/v1/groups/" + group + "/recurring"), alice, Map.of("description", "Wifi", "costCents", 80000, "payerId", alice.id().toString(),
+            "participantIds", List.of(alice.id().toString(), bob.id().toString()), "frequency", "WEEKLY",
+            "startDate", java.time.LocalDate.now(java.time.ZoneOffset.UTC).minusDays(7).toString())).andExpect(status().isCreated());
+        mockMvc.perform(post("/api/v1/internal/maintenance/run-recurring")).andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/internal/maintenance/run-recurring").header("X-Maintenance-Token", "test-maint-token"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.generated").value(org.hamcrest.Matchers.greaterThanOrEqualTo(1)));
+        assertEquals(1, json(perform(get("/api/v1/groups/" + group + "/expenses"), alice, null)).size());
+    }
+
+    @Test
     @DisplayName("Google sign-in creates, links and claims accounts, and refuses bad tokens")
     void googleSignIn() throws Exception {
         String email = "gia_" + UUID.randomUUID().toString().substring(0, 8) + "@example.com";

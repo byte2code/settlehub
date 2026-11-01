@@ -2,6 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import type {
+  RecurringExpense,
   AwardsResponse,
   Engagement,
   ExpenseComment,
@@ -196,6 +197,11 @@ export const api = {
   adminUsers: (q: string) => request<AdminUser[]>('GET', `/admin/users?q=${encodeURIComponent(q)}`),
   adminGroups: (q: string) => request<AdminGroup[]>('GET', `/admin/groups?q=${encodeURIComponent(q)}`),
   adminSetActive: (id: string, active: boolean) => request<AdminUser>('PATCH', `/admin/users/${id}/active`, { active }),
+  recurring: (groupId: string) => request<RecurringExpense[]>('GET', `/groups/${groupId}/recurring`),
+  createRecurring: (groupId: string, data: { description: string; costCents: number; category?: string; payerId: string; participantIds: string[]; frequency: 'WEEKLY' | 'MONTHLY'; startDate: string }) =>
+    request<RecurringExpense>('POST', `/groups/${groupId}/recurring`, data),
+  deleteRecurring: (id: string) => request<{ success: boolean }>('DELETE', `/recurring/${id}`),
+  runRecurring: (groupId: string) => request<{ generated: number }>('POST', `/groups/${groupId}/recurring/run`),
   confirmSettlement: (id: string) => request<Settlement>('POST', `/settlements/${id}/confirm`),
   rejectSettlement: (id: string) => request<{ success: boolean }>('POST', `/settlements/${id}/reject`),
   engagement: (groupId: string) => request<Record<string, Engagement>>('GET', `/groups/${groupId}/engagement`),

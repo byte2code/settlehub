@@ -294,3 +294,17 @@ export interface AwardsResponse {
   revealedAt: string | null;
   awards: Award[];
 }
+
+export interface RecurringExpense {
+  id: string;
+  description: string;
+  costCents: number;
+  costFormatted: string;
+  category: string;
+  payerId: string;
+  participantIds: string[];
+  frequency: 'WEEKLY' | 'MONTHLY';
+  nextRunDate: string;
+  active: boolean;
+  pausedReason?: string | null;
+}

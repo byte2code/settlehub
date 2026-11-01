@@ -16,6 +16,7 @@ import { enqueue, isOfflineError } from '../../lib/outbox';
 import { ReceiptScanPrompt } from './ReceiptScanPrompt';
 import { validateSplit } from '../../lib/split';
 import { useInvalidateGroup } from '../../hooks/queries';
+import { useQueryClient } from '@tanstack/react-query';
 import { useCurrentUser } from '../../hooks/useAuth';
 import type { Expense, ExpenseInput, Group, GroupMember, SplitMethod } from '../../types';
 import { Modal } from '../ui/Modal';
@@ -86,6 +87,7 @@ export default function ExpenseFormModal({ group, expense, initialPayerId, onClo
   const user = useCurrentUser();
   const toast = useToast();
   const invalidate = useInvalidateGroup();
+  const qc = useQueryClient();
   const editing = Boolean(expense);
   const currency = group.currencyCode;
 
@@ -100,6 +102,7 @@ export default function ExpenseFormModal({ group, expense, initialPayerId, onClo
   const [receipt, setReceipt] = useState<ReceiptState>(expense?.hasReceipt ? { kind: 'keep' } : { kind: 'none' });
   // One id per form: a retry or a later sync of the same expense can never create a duplicate
   const [clientId] = useState(() => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`.replace(/\./g, '')));
+  const [repeat, setRepeat] = useState<'NONE' | 'WEEKLY' | 'MONTHLY'>('NONE');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -218,6 +221,22 @@ export default function ExpenseFormModal({ group, expense, initialPayerId, onClo
       if (expense) await api.updateExpense(expense.id, payload);
       else await api.createExpense(group.id, payload);
       await invalidate(group.id);
+      if (!editing && repeat !== 'NONE') {
+        try {
+          await api.createRecurring(group.id, {
+            description: payload.description,
+            costCents: totalCents,
+            category: form.category,
+            payerId: form.payerId,
+            participantIds: ids.filter((id) => form.selected[id]),
+            frequency: repeat,
+            startDate: form.date || toDateInput(),
+          });
+          void qc.invalidateQueries({ queryKey: ['group', group.id, 'recurring'] });
+        } catch {
+          toast.error('The expense was added, but it couldn’t be set to repeat.');
+        }
+      }
       toast.success(editing ? 'Expense updated' : copy('toast.expenseAdded'));
       void haptic('success');
       onClose();
@@ -430,8 +449,19 @@ export default function ExpenseFormModal({ group, expense, initialPayerId, onClo
         <SplitSection group={group} form={form} set={set} totalCents={totalCents} symbol={groupSymbol} />
 
         <details className="group rounded-2xl border border-line bg-surface-2 p-3" open={editing && Boolean(form.notes)}>
-          <summary className="cursor-pointer text-xs font-semibold text-fg">More details <span className="font-normal text-muted">(date, notes)</span></summary>
+          <summary className="cursor-pointer text-xs font-semibold text-fg">More details <span className="font-normal text-muted">(date, repeat, notes)</span></summary>
           <div className="mt-3 space-y-3">
+            {!editing && (
+              <div>
+                <label className="label" htmlFor="repeat">Repeat</label>
+                <select id="repeat" className="input" value={repeat} disabled={form.method !== 'EQUAL' || form.multiPayer || foreign} onChange={(e) => setRepeat(e.target.value as typeof repeat)}>
+                  <option value="NONE">Doesn’t repeat</option>
+                  <option value="WEEKLY">Every week</option>
+                  <option value="MONTHLY">Every month (rent, bills)</option>
+                </select>
+                {(form.method !== 'EQUAL' || form.multiPayer || foreign) && <p className="mt-1 text-[11px] text-subtle">Repeating works for equal splits with one payer, in the group’s currency.</p>}
+              </div>
+            )}
             <div>
               <label className="label" htmlFor="date">Date</label>
               <input id="date" type="date" className="input" value={form.date} onChange={(e) => set('date', e.target.value)} />
