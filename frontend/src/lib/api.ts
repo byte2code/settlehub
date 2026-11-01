@@ -196,6 +196,8 @@ export const api = {
   adminUsers: (q: string) => request<AdminUser[]>('GET', `/admin/users?q=${encodeURIComponent(q)}`),
   adminGroups: (q: string) => request<AdminGroup[]>('GET', `/admin/groups?q=${encodeURIComponent(q)}`),
   adminSetActive: (id: string, active: boolean) => request<AdminUser>('PATCH', `/admin/users/${id}/active`, { active }),
+  confirmSettlement: (id: string) => request<Settlement>('POST', `/settlements/${id}/confirm`),
+  rejectSettlement: (id: string) => request<{ success: boolean }>('POST', `/settlements/${id}/reject`),
   engagement: (groupId: string) => request<Record<string, Engagement>>('GET', `/groups/${groupId}/engagement`),
   react: (expenseId: string, emoji: string) => request<Engagement>('PUT', `/expenses/${expenseId}/reactions`, { emoji }),
   comments: (expenseId: string) => request<ExpenseComment[]>('GET', `/expenses/${expenseId}/comments`),

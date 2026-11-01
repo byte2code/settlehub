@@ -183,4 +183,38 @@ class FeatureIntegrationTest extends ApiTestSupport {
             "clientId", UUID.randomUUID().toString(), "splits", List.of(Map.of("userId", alice.id().toString())))).andExpect(status().isCreated());
         assertEquals(2, json(perform(get("/api/v1/groups/" + groupId + "/expenses"), alice, null)).size());
     }
+
+    @Test
+    @DisplayName("A payment you record yourself waits for the receiver to confirm; the receiver can confirm or reject it")
+    void paymentConfirmation() throws Exception {
+        TestUser alice = register("Alice");
+        TestUser bob = register("Bob");
+        TestUser cara = register("Cara");
+        UUID groupId = createGroup(alice, "Flat", List.of(bob.email(), cara.email()));
+        addEqualExpense(alice, groupId, 9000, alice, bob, cara);
+
+        // Bob says he paid Alice: pending, and it already counts toward the balance
+        JsonNode pending = json(perform(post("/api/v1/settlements"), bob, Map.of("groupId", groupId.toString(), "payerId", bob.id().toString(),
+            "payeeId", alice.id().toString(), "amountCents", 3000)).andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("PENDING")));
+        assertEquals(0, netBalance(alice, groupId, bob));
+        String id = pending.get("id").asString();
+
+        perform(post("/api/v1/settlements/" + id + "/confirm"), bob, null).andExpect(status().isForbidden());   // the payer can't confirm their own
+        perform(post("/api/v1/settlements/" + id + "/confirm"), cara, null).andExpect(status().isForbidden());   // nor a bystander
+        perform(post("/api/v1/settlements/" + id + "/confirm"), alice, null).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CONFIRMED"));
+        perform(post("/api/v1/settlements/" + id + "/confirm"), alice, null).andExpect(status().isBadRequest());  // already done
+        assertEquals("SETTLEMENT_CONFIRMED", json(perform(get("/api/v1/notifications"), bob, null)).get("notifications").get(0).get("type").asString());
+
+        // Cara says she paid, Alice says it never arrived: the payment disappears and the debt returns
+        String second = json(perform(post("/api/v1/settlements"), cara, Map.of("groupId", groupId.toString(), "payerId", cara.id().toString(),
+            "payeeId", alice.id().toString(), "amountCents", 3000)).andExpect(status().isCreated())).get("id").asString();
+        assertEquals(0, netBalance(alice, groupId, cara));
+        perform(post("/api/v1/settlements/" + second + "/reject"), alice, null).andExpect(status().isOk());
+        assertEquals(-3000, netBalance(alice, groupId, cara));
+        assertEquals("SETTLEMENT_REJECTED", json(perform(get("/api/v1/notifications"), cara, null)).get("notifications").get(0).get("type").asString());
+
+        // Alice recording on Bob's behalf is final (she is the receiver)
+        perform(post("/api/v1/settlements"), alice, Map.of("groupId", groupId.toString(), "payerId", cara.id().toString(),
+            "payeeId", alice.id().toString(), "amountCents", 3000)).andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("CONFIRMED"));
+    }
 }

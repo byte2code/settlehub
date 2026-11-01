@@ -63,6 +63,10 @@ public class SettlementService {
         Settlement settlement = new Settlement(group, payer, payee, request.amountCents(), group.getCurrencyCode(),
             request.date() != null ? request.date() : Instant.now());
         settlement.setCreatedBy(me.getUser());
+        // Someone saying "I paid" needs the receiver to agree; a receiver (or a third party) recording it is final
+        boolean selfReported = currentUserId.equals(payer.getId());
+        settlement.setStatus(selfReported ? "PENDING" : "CONFIRMED");
+        if (!selfReported) settlement.setConfirmedAt(Instant.now());
         if (request.note() != null && !request.note().isBlank()) {
             settlement.setNote(request.note().trim());
         }
@@ -112,6 +116,50 @@ public class SettlementService {
         events.publishGroupEvent(group.getId(), "SETTLEMENT_DELETED", currentUserId, settlementId);
         notificationService.notifySettlementDeleted(group, me.getUser(), settlement.getPayer().getFirstName(),
                 settlement.getPayee().getFirstName(), settlement.getAmountCents());
+    }
+
+    /** The receiver confirms they got the money. */
+    @Transactional
+    public SettlementDto confirm(UUID settlementId, UUID currentUserId) {
+        Settlement settlement = pendingForPayee(settlementId, currentUserId);
+        settlement.setStatus("CONFIRMED");
+        settlement.setConfirmedAt(Instant.now());
+        settlementRepository.save(settlement);
+        Group group = settlement.getGroup();
+        User me = settlement.getPayee();
+        activityService.record(group, me, Activity.Type.SETTLEMENT_CONFIRMED,
+            me.getFirstName() + " confirmed receiving " + CurrencyUtil.formatCents(settlement.getAmountCents(), settlement.getCurrencyCode())
+                + " from " + settlement.getPayer().getFirstName(), settlement.getAmountCents());
+        events.publishGroupEvent(group.getId(), "SETTLEMENT_CONFIRMED", currentUserId, settlementId);
+        notificationService.notifySettlementConfirmed(settlement);
+        return SettlementDto.fromEntity(settlement);
+    }
+
+    /** The receiver says the money never arrived: the payment is removed and the balance goes back. */
+    @Transactional
+    public void reject(UUID settlementId, UUID currentUserId) {
+        Settlement settlement = pendingForPayee(settlementId, currentUserId);
+        Group group = settlement.getGroup();
+        User me = settlement.getPayee();
+        settlementRepository.delete(settlement);
+        group.setUpdatedAt(Instant.now());
+        groupRepository.save(group);
+        activityService.record(group, me, Activity.Type.SETTLEMENT_REJECTED,
+            me.getFirstName() + " says they didn't receive " + CurrencyUtil.formatCents(settlement.getAmountCents(), settlement.getCurrencyCode())
+                + " from " + settlement.getPayer().getFirstName() + ", so the payment was removed", settlement.getAmountCents());
+        events.publishGroupEvent(group.getId(), "SETTLEMENT_REJECTED", currentUserId, settlementId);
+        notificationService.notifySettlementRejected(settlement);
+    }
+
+    private Settlement pendingForPayee(UUID settlementId, UUID currentUserId) {
+        Settlement settlement = access.requireSettlement(settlementId, currentUserId);
+        if (!settlement.getPayee().getId().equals(currentUserId)) {
+            throw new ForbiddenException("Only the person who received the payment can do that");
+        }
+        if (!"PENDING".equals(settlement.getStatus())) {
+            throw new IllegalArgumentException("This payment is already confirmed");
+        }
+        return settlement;
     }
 
     private User memberUser(UUID groupId, UUID userId) {

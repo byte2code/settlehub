@@ -18,7 +18,9 @@ public record SettlementDto(
     Instant date,
     Instant createdAt,
     String note,
-    String createdByName
+    String createdByName,
+    String status,
+    Instant confirmedAt
 ) {
     public static SettlementDto fromEntity(Settlement s) {
         return new SettlementDto(
@@ -34,7 +36,9 @@ public record SettlementDto(
             s.getDate(),
             s.getCreatedAt(),
             s.getNote(),
-            s.getCreatedBy() != null ? s.getCreatedBy().getFullName() : null
+            s.getCreatedBy() != null ? s.getCreatedBy().getFullName() : null,
+            s.getStatus(),
+            s.getConfirmedAt()
         );
     }
 }

@@ -45,6 +45,13 @@ public class Settlement {
     @Column(length = 255)
     private String note;
 
+    /** PENDING until the person who received the money confirms; CONFIRMED otherwise. */
+    @Column(nullable = false, length = 16)
+    private String status = "CONFIRMED";
+
+    @Column(name = "confirmed_at")
+    private Instant confirmedAt;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -101,4 +108,9 @@ public class Settlement {
     public int hashCode() {
         return Objects.hash(id);
     }
+
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+    public Instant getConfirmedAt() { return confirmedAt; }
+    public void setConfirmedAt(Instant confirmedAt) { this.confirmedAt = confirmedAt; }
 }

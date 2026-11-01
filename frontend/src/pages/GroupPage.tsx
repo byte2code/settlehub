@@ -157,6 +157,13 @@ export function GroupPage() {
     }
   };
 
+  const confirmSettlement = (s: Settlement) => run(() => api.confirmSettlement(s.id), 'Payment confirmed');
+  const rejectSettlement = async (s: Settlement) => {
+    if (await confirm({ title: 'You didn’t receive this?', message: `${s.payerName}’s ${s.amountFormatted} payment will be removed and they’ll be told. The balance goes back.`, confirmLabel: 'Remove payment', danger: true })) {
+      await run(() => api.rejectSettlement(s.id), 'Payment removed');
+    }
+  };
+
   const toggleArchive = () =>
     run(() => api.updateGroup(groupId, { archived: !group.archived }), group.archived ? 'Group restored' : 'Group archived');
 
@@ -234,7 +241,7 @@ export function GroupPage() {
             onOpenThread={(expense) => setModal({ kind: 'thread', expense })}
           />
         )}
-        {tab === 'payments' && <SettlementList group={group} settlements={settlements} onUndo={undoSettlement} />}
+        {tab === 'payments' && <SettlementList group={group} settlements={settlements} onUndo={undoSettlement} onConfirm={confirmSettlement} onReject={rejectSettlement} />}
         {tab === 'stats' && (
           <div className="space-y-4">
             <StatsPanel group={group} expenses={expenses} />

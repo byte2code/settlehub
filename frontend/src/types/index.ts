@@ -138,6 +138,9 @@ export interface Settlement {
   createdAt: string;
   note?: string | null;
   createdByName?: string | null;
+  /** PENDING until the person who received the money confirms. */
+  status?: 'PENDING' | 'CONFIRMED';
+  confirmedAt?: string | null;
 }
 
 export interface Activity {

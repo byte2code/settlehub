@@ -230,6 +230,27 @@ public class NotificationService {
     }
 
     @Transactional
+    public void notifySettlementConfirmed(Settlement settlement) {
+        User payer = settlement.getPayer();
+        User payee = settlement.getPayee();
+        UserNotification saved = notificationRepository.save(new UserNotification(payer.getId(), payee, settlement.getGroup().getId(), settlement.getId(),
+            "SETTLEMENT_CONFIRMED", "✅ " + settlement.getGroup().getName() + ": Payment confirmed",
+            payee.getFirstName() + " confirmed your " + CurrencyUtil.formatCents(settlement.getAmountCents(), settlement.getCurrencyCode()) + " payment."));
+        deliver(payer.getId(), saved);
+    }
+
+    @Transactional
+    public void notifySettlementRejected(Settlement settlement) {
+        User payer = settlement.getPayer();
+        User payee = settlement.getPayee();
+        UserNotification saved = notificationRepository.save(new UserNotification(payer.getId(), payee, settlement.getGroup().getId(), null,
+            "SETTLEMENT_REJECTED", "⚠️ " + settlement.getGroup().getName() + ": Payment not received",
+            payee.getFirstName() + " says they didn't receive your " + CurrencyUtil.formatCents(settlement.getAmountCents(), settlement.getCurrencyCode())
+                + " payment, so it was removed. Check with them and record it again once sent."));
+        deliver(payer.getId(), saved);
+    }
+
+    @Transactional
     public void notifySettlementDeleted(Group group, User actor, String payerName, String payeeName, long amountCents) {
         String currency = group.getCurrencyCode();
         List<GroupMember> members = groupMemberRepository.findAllByGroupId(group.getId());

@@ -36,6 +36,17 @@ public class SettlementController {
         return settlementService.getSettlementsForGroup(groupId, principal.getId());
     }
 
+    @PostMapping("/settlements/{settlementId}/confirm")
+    public SettlementDto confirm(@PathVariable("settlementId") UUID settlementId, @AuthenticationPrincipal UserPrincipal principal) {
+        return settlementService.confirm(settlementId, principal.getId());
+    }
+
+    @PostMapping("/settlements/{settlementId}/reject")
+    public Map<String, Boolean> reject(@PathVariable("settlementId") UUID settlementId, @AuthenticationPrincipal UserPrincipal principal) {
+        settlementService.reject(settlementId, principal.getId());
+        return Map.of("success", true);
+    }
+
     @DeleteMapping("/settlements/{settlementId}")
     public Map<String, Boolean> deleteSettlement(@PathVariable("settlementId") UUID settlementId,
                                                  @AuthenticationPrincipal UserPrincipal principal) {
