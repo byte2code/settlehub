@@ -125,6 +125,9 @@ export const api = {
     otp?: string;
   }) => request<AuthResponse>('POST', '/auth/register', data),
   login: (data: { email: string; password: string }) => request<AuthResponse>('POST', '/auth/login', data),
+  forgotPassword: (email: string) => request<SendOtpResponse>('POST', '/auth/forgot-password', { email }),
+  resetPassword: (data: { email: string; otp: string; newPassword: string }) =>
+    request<AuthResponse>('POST', '/auth/reset-password', data),
   me: () => request<User>('GET', '/auth/me'),
   updateProfile: (data: { firstName?: string; lastName?: string; currencyCode?: string; upiId?: string }) =>
     request<User>('PATCH', '/auth/me', data),

@@ -37,7 +37,7 @@ abstract class ApiTestSupport {
 
     protected TestUser register(String firstName, String email) throws Exception {
         JsonNode body = json(perform(post("/api/v1/auth/register"), null,
-            Map.of("email", email, "password", "password123", "firstName", firstName, "currencyCode", "INR"))
+            Map.of("email", email, "password", "password123", "firstName", firstName, "currencyCode", "INR", "otp", "000000"))
             .andExpect(status().isCreated()));
         return new TestUser(UUID.fromString(body.get("user").get("id").asString()), email, body.get("token").asString());
     }

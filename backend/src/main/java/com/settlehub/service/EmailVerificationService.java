@@ -3,7 +3,9 @@ package com.settlehub.service;
 import com.settlehub.dto.SendOtpResponse;
 import com.settlehub.exception.BadRequestException;
 import com.settlehub.exception.ConflictException;
+import com.settlehub.exception.NotFoundException;
 import com.settlehub.model.EmailVerification;
+import com.settlehub.model.User;
 import com.settlehub.repository.EmailVerificationRepository;
 import com.settlehub.repository.UserRepository;
 import org.slf4j.Logger;
@@ -134,7 +136,7 @@ public class EmailVerificationService {
         verificationRepository.save(verification);
 
         // Dispatch email via Brevo REST API
-        boolean sent = sendBrevoEmail(email, code);
+        boolean sent = sendBrevoEmail(email, "Your SettleHub Verification Code: " + code, buildOtpEmailHtml(code));
         if (!sent) {
             if (brevoApiKey.isBlank()) {
                 log.warn("BREVO_API_KEY is not configured. Master OTP '{}' can be used for '{}'.", masterOtp, email);
@@ -225,7 +227,94 @@ public class EmailVerificationService {
         verificationRepository.deleteByEmail(email);
     }
 
-    private boolean sendBrevoEmail(String recipientEmail, String code) {
+    @Transactional
+    public SendOtpResponse sendPasswordResetOtp(String rawEmail) {
+        if (rawEmail == null || rawEmail.isBlank()) {
+            throw new BadRequestException("Email is required");
+        }
+        String email = rawEmail.trim().toLowerCase(Locale.ROOT);
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new NotFoundException("No account found with this email address. Please sign up."));
+        if (user.isPlaceholder()) {
+            throw new BadRequestException("This account was invited to a group but never activated. Please sign up to create your password.");
+        }
+
+        if (isBypassed(email)) {
+            log.info("Password reset bypassed for '{}'", email);
+            return new SendOtpResponse(true, true, "Password reset bypassed for testing", 0);
+        }
+
+        // Cool-down check: must wait at least 60s between codes for the same email
+        verificationRepository.findTopByEmailOrderByCreatedAtDesc(email).ifPresent(last -> {
+            long elapsedSeconds = Duration.between(last.getCreatedAt(), Instant.now()).getSeconds();
+            if (elapsedSeconds < 60) {
+                long waitTime = 60 - elapsedSeconds;
+                throw new BadRequestException("Please wait " + waitTime + " seconds before requesting another code.");
+            }
+        });
+
+        int codeInt = 100000 + SECURE_RANDOM.nextInt(900000);
+        String code = String.valueOf(codeInt);
+
+        Instant expiresAt = Instant.now().plus(Duration.ofMinutes(otpExpiryMinutes));
+        String otpHash = passwordEncoder.encode(code);
+        EmailVerification verification = new EmailVerification(email, otpHash, expiresAt);
+        verificationRepository.save(verification);
+
+        boolean sent = sendBrevoEmail(email, "Your SettleHub Password Reset Code: " + code, buildPasswordResetEmailHtml(code));
+        if (!sent) {
+            if (brevoApiKey.isBlank()) {
+                log.warn("BREVO_API_KEY is not configured. Master OTP '{}' can be used for password reset on '{}'.", masterOtp, email);
+                return new SendOtpResponse(true, false, "Email service not configured. Use development master code.", otpExpiryMinutes * 60);
+            }
+            throw new BadRequestException("Could not send password reset email. Please try again later.");
+        }
+
+        return new SendOtpResponse(true, false, "Password reset code sent to " + email, otpExpiryMinutes * 60);
+    }
+
+    @Transactional
+    public void validatePasswordResetOtp(String rawEmail, String otp) {
+        if (rawEmail == null || rawEmail.isBlank()) {
+            throw new BadRequestException("Email is required");
+        }
+        String email = rawEmail.trim().toLowerCase(Locale.ROOT);
+
+        if (isBypassed(email)) return;
+        if (otp != null && otp.trim().equals(masterOtp)) {
+            log.info("Master OTP accepted for password reset of '{}'", email);
+            verificationRepository.deleteByEmail(email);
+            return;
+        }
+
+        if (otp == null || otp.isBlank()) {
+            throw new BadRequestException("Verification code is required.");
+        }
+
+        EmailVerification verification = verificationRepository.findTopByEmailOrderByCreatedAtDesc(email)
+                .orElseThrow(() -> new BadRequestException("Please request a reset code before resetting your password."));
+
+        if (verification.isExpired()) {
+            throw new BadRequestException("Verification code has expired. Please request a new one.");
+        }
+
+        if (verification.getAttempts() >= 5) {
+            throw new BadRequestException("Too many failed attempts. Please request a new code.");
+        }
+
+        if (!passwordEncoder.matches(otp.trim(), verification.getOtpHash())) {
+            verification.incrementAttempts();
+            verificationRepository.save(verification);
+            int remaining = Math.max(0, 5 - verification.getAttempts());
+            String hint = remaining > 0 ? remaining + " attempt(s) remaining." : "Please request a new code.";
+            throw new BadRequestException("Invalid verification code. " + hint);
+        }
+
+        verificationRepository.deleteByEmail(email);
+    }
+
+    private boolean sendBrevoEmail(String recipientEmail, String subject, String htmlContent) {
         if (brevoApiKey.isBlank()) {
             return false;
         }
@@ -237,8 +326,8 @@ public class EmailVerificationService {
             String jsonBody = "{"
                     + "\"sender\":{\"name\":\"SettleHub\",\"email\":" + jsonString(senderEmail) + "},"
                     + "\"to\":[{\"email\":" + jsonString(recipientEmail) + "}],"
-                    + "\"subject\":" + jsonString("Your SettleHub Verification Code: " + code) + ","
-                    + "\"htmlContent\":" + jsonString(buildOtpEmailHtml(code))
+                    + "\"subject\":" + jsonString(subject) + ","
+                    + "\"htmlContent\":" + jsonString(htmlContent)
                     + "}";
 
             HttpRequest request = HttpRequest.newBuilder()
@@ -275,6 +364,21 @@ public class EmailVerificationService {
                 + "<span style='font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:32px;font-weight:800;letter-spacing:8px;color:#34d399;'>" + code + "</span>"
                 + "</div>"
                 + "<p style='margin:0;font-size:12px;color:#64748b;line-height:1.5;'>If you did not request this verification code, you can safely ignore this email. No account will be created without this code.</p>"
+                + "</div>"
+                + "</body></html>";
+    }
+
+    private String buildPasswordResetEmailHtml(String code) {
+        return "<!DOCTYPE html><html><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width, initial-scale=1.0'/></head>"
+                + "<body style='margin:0;padding:24px;background-color:#090d16;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;color:#f1f5f9;'>"
+                + "<div style='max-width:480px;margin:0 auto;background:#0f1726;border:1px solid #1e293b;border-radius:16px;padding:32px;text-align:center;box-shadow:0 10px 25px rgba(0,0,0,0.5);'>"
+                + "<div style='display:inline-block;padding:8px 16px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);border-radius:24px;color:#34d399;font-weight:700;font-size:14px;margin-bottom:20px;letter-spacing:0.5px;'>SettleHub</div>"
+                + "<h2 style='margin:0 0 12px;font-size:22px;font-weight:700;color:#ffffff;'>Reset your password</h2>"
+                + "<p style='margin:0 0 28px;font-size:14px;color:#94a3b8;line-height:1.5;'>Use the verification code below to reset your SettleHub account password. This code will expire in " + otpExpiryMinutes + " minutes.</p>"
+                + "<div style='background:#090d16;border:1px solid #334155;border-radius:12px;padding:18px 24px;margin:0 auto 28px;display:inline-block;'>"
+                + "<span style='font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:32px;font-weight:800;letter-spacing:8px;color:#34d399;'>" + code + "</span>"
+                + "</div>"
+                + "<p style='margin:0;font-size:12px;color:#64748b;line-height:1.5;'>If you did not request a password reset, you can safely ignore this email. Your password remains unchanged.</p>"
                 + "</div>"
                 + "</body></html>";
     }

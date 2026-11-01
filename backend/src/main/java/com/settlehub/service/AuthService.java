@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -49,13 +50,16 @@ public class AuthService {
         String firstName = request.firstName().trim();
         String lastName = request.lastName() != null ? request.lastName().trim() : "";
 
+        // Check if an active account already exists before checking OTP
+        Optional<User> existingUser = userRepository.findByEmail(email);
+        if (existingUser.isPresent() && !existingUser.get().isPlaceholder()) {
+            throw new ConflictException("An account with this email already exists. Try signing in.");
+        }
+
         // Enforce email verification if required and not bypassed
         emailVerificationService.validateRegistrationOtp(email, request.otp());
 
-        User user = userRepository.findByEmail(email).map(existing -> {
-            if (!existing.isPlaceholder()) {
-                throw new ConflictException("An account with this email already exists. Try signing in.");
-            }
+        User user = existingUser.map(existing -> {
             existing.setPlaceholder(false);
             existing.setPassword(passwordEncoder.encode(request.password()));
             existing.setFirstName(firstName);
@@ -112,6 +116,24 @@ public class AuthService {
         }
         user.setPassword(passwordEncoder.encode(request.newPassword()));
         userRepository.save(user);
+    }
+
+    @Transactional
+    public SendOtpResponse forgotPassword(ForgotPasswordRequest request) {
+        return emailVerificationService.sendPasswordResetOtp(request.email());
+    }
+
+    @Transactional
+    public AuthResponse resetPassword(ResetPasswordRequest request) {
+        String email = request.email().trim().toLowerCase(Locale.ROOT);
+        emailVerificationService.validatePasswordResetOtp(email, request.otp());
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+        user.setPassword(passwordEncoder.encode(request.newPassword()));
+        User saved = userRepository.save(user);
+
+        return new AuthResponse(tokenProvider.generateToken(UserPrincipal.create(saved)), UserDto.fromEntity(saved));
     }
 
     private User requireUser(UUID userId) {

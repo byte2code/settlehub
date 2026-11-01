@@ -14,14 +14,27 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class EmailVerificationIntegrationTest extends ApiTestSupport {
 
     @Test
-    @DisplayName("Send OTP returns bypassed=true for test domains or when disabled")
-    void sendOtpBypassedForTestDomains() throws Exception {
-        JsonNode res = json(perform(post("/api/v1/auth/send-otp"), null, Map.of("email", "qa-user@example.com"))
+    @DisplayName("Send OTP returns bypassed=true strictly for whitelisted admin and test accounts")
+    void sendOtpBypassedForWhitelistedAccounts() throws Exception {
+        // Admin account
+        perform(post("/api/v1/auth/send-otp"), null, Map.of("email", "admin@settlehub.com"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.bypassed").value(true)));
+                .andExpect(jsonPath("$.bypassed").value(true));
 
-        assertTrue(res.get("bypassed").asBoolean());
+        // Test account 1
+        perform(post("/api/v1/auth/send-otp"), null, Map.of("email", "test1@settlehub.com"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.bypassed").value(true));
+
+        // Random email is NOT bypassed
+        JsonNode randomRes = json(perform(post("/api/v1/auth/send-otp"), null, Map.of("email", "randomuser@gmail.com"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.bypassed").value(false)));
+
+        assertFalse(randomRes.get("bypassed").asBoolean());
     }
 
     @Test
@@ -44,4 +57,36 @@ class EmailVerificationIntegrationTest extends ApiTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
     }
+
+    @Test
+    @DisplayName("Forgot password and reset password flow with master OTP")
+    void forgotAndResetPasswordFlow() throws Exception {
+        TestUser user = register("ResetUser");
+
+        // 1. Request password reset
+        perform(post("/api/v1/auth/forgot-password"), null, Map.of("email", user.email()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        // 2. Reset password using master OTP 000000
+        JsonNode resetRes = json(perform(post("/api/v1/auth/reset-password"), null, Map.of(
+                "email", user.email(),
+                "otp", "000000",
+                "newPassword", "newPassword456"
+        ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").isString())
+                .andExpect(jsonPath("$.user.email").value(user.email())));
+
+        assertNotNull(resetRes.get("token").asString());
+
+        // 3. Login with newly reset password succeeds
+        perform(post("/api/v1/auth/login"), null, Map.of(
+                "email", user.email(),
+                "password", "newPassword456"
+        ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").isString());
+    }
 }
+

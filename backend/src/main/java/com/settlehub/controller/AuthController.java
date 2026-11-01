@@ -68,4 +68,14 @@ public class AuthController {
         authService.changePassword(principal.getId(), request);
         return ResponseEntity.noContent().build();
     }
+
+    @PostMapping("/forgot-password")
+    public SendOtpResponse forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        return authService.forgotPassword(request);
+    }
+
+    @PostMapping("/reset-password")
+    public AuthResponse resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        return authService.resetPassword(request);
+    }
 }

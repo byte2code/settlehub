@@ -17,11 +17,13 @@ interface AuthModalProps {
 
 export default function AuthModal({ open, onClose, context, initialMode = 'login' }: AuthModalProps) {
   const { signIn } = useAuth();
-  const [mode, setMode] = useState<'login' | 'register'>(initialMode);
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot'>(initialMode);
   const [regStep, setRegStep] = useState<'details' | 'otp'>('details');
+  const [forgotStep, setForgotStep] = useState<'email' | 'reset'>('email');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [currencyCode, setCurrencyCode] = useState('INR');
@@ -50,11 +52,11 @@ export default function AuthModal({ open, onClose, context, initialMode = 'login
         const res = await api.login({ email, password });
         signIn(res);
         onClose();
-      } else {
+      } else if (mode === 'register') {
         // Step 1: Send OTP / check bypass
         const otpRes = await api.sendOtp(email);
         if (otpRes.bypassed) {
-          // Bypassed (development or test domain) - create account immediately
+          // Bypassed (admin or whitelisted test account) - create account immediately
           const res = await api.register({ email, password, firstName, lastName, currencyCode });
           signIn(res);
           onClose();
@@ -112,16 +114,97 @@ export default function AuthModal({ open, onClose, context, initialMode = 'login
     }
   };
 
+  const handleForgotEmailSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.forgotPassword(email);
+      setForgotStep('reset');
+      setResendCooldown(res.bypassed ? 0 : 60);
+      setOtp(res.bypassed ? '000000' : '');
+      setNewPassword('');
+    } catch (err) {
+      setError(errorMessage(err, 'Could not request password reset'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotResetSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!otp.trim()) {
+      setError('Please enter the 6-digit verification code');
+      return;
+    }
+    if (newPassword.length < 8) {
+      setError('Password must be at least 8 characters');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.resetPassword({
+        email,
+        otp: otp.trim(),
+        newPassword,
+      });
+      signIn(res);
+      onClose();
+    } catch (err) {
+      setError(errorMessage(err, 'Password reset failed'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotResend = async () => {
+    if (resendCooldown > 0 || resending) return;
+    setResending(true);
+    setError(null);
+    try {
+      await api.forgotPassword(email);
+      setResendCooldown(60);
+    } catch (err) {
+      setError(errorMessage(err, 'Could not resend reset code'));
+    } finally {
+      setResending(false);
+    }
+  };
+
   const isLogin = mode === 'login';
+  const isForgot = mode === 'forgot';
 
   return (
     <Modal
       open={open}
       onClose={onClose}
-      icon={regStep === 'otp' ? <KeyRound className="h-5 w-5 text-brand" /> : <LogIn className="h-5 w-5" />}
-      title={isLogin ? 'Welcome back' : regStep === 'otp' ? 'Check your email' : 'Create your account'}
+      icon={
+        isForgot ? (
+          <KeyRound className="h-5 w-5 text-brand-fg" />
+        ) : regStep === 'otp' ? (
+          <KeyRound className="h-5 w-5 text-brand-fg" />
+        ) : (
+          <LogIn className="h-5 w-5" />
+        )
+      }
+      title={
+        isForgot
+          ? forgotStep === 'email'
+            ? 'Reset password'
+            : 'Enter reset code'
+          : isLogin
+          ? 'Welcome back'
+          : regStep === 'otp'
+          ? 'Check your email'
+          : 'Create your account'
+      }
       subtitle={
-        isLogin
+        isForgot
+          ? forgotStep === 'email'
+            ? 'Enter your registered email and we’ll send a 6-digit reset code'
+            : `We sent a reset code to ${email}`
+          : isLogin
           ? 'Sign in to see your groups and balances'
           : regStep === 'otp'
           ? `We sent a 6-digit code to ${email}`
@@ -131,7 +214,7 @@ export default function AuthModal({ open, onClose, context, initialMode = 'login
       <div className="space-y-4">
         {context && <p className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-3 text-xs text-brand-fg">{context}</p>}
 
-        {regStep === 'details' && (
+        {!isForgot && regStep === 'details' && (
           <div className="segmented w-full" role="tablist">
             {(['login', 'register'] as const).map((m) => (
               <button
@@ -154,9 +237,9 @@ export default function AuthModal({ open, onClose, context, initialMode = 'login
 
         {import.meta.env.DEV && isLogin && (
           <div className="flex items-center justify-between rounded-xl border border-line bg-surface-2 p-2 text-[11px] text-muted">
-            <span>Local demo:</span>
+            <span>Demo accounts:</span>
             <span className="flex gap-1.5">
-              {['alice', 'bob'].map((n) => (
+              {['admin', 'test1', 'test2'].map((n) => (
                 <button
                   key={n}
                   type="button"
@@ -175,7 +258,123 @@ export default function AuthModal({ open, onClose, context, initialMode = 'login
 
         <ErrorNote message={error} />
 
-        {regStep === 'details' ? (
+        {isForgot ? (
+          forgotStep === 'email' ? (
+            /* Forgot Password Step 1: Email Entry */
+            <form onSubmit={handleForgotEmailSubmit} className="space-y-3">
+              <div>
+                <label className="label" htmlFor="forgot-email">Registered Email</label>
+                <input
+                  id="forgot-email"
+                  type="email"
+                  className="input"
+                  required
+                  placeholder="name@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
+                  autoFocus
+                />
+              </div>
+
+              <button type="submit" disabled={loading} className="btn-primary w-full py-2.5 text-sm">
+                {loading ? 'Please wait…' : 'Send reset code'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('login');
+                  setError(null);
+                }}
+                className="btn-ghost w-full py-2 text-xs text-muted hover:text-fg transition-colors"
+              >
+                <ArrowLeft className="h-3.5 w-3.5 mr-1 inline" />
+                Back to sign in
+              </button>
+            </form>
+          ) : (
+            /* Forgot Password Step 2: OTP + New Password */
+            <form onSubmit={handleForgotResetSubmit} className="space-y-4">
+              <div className="rounded-xl border border-line bg-surface-2 p-3 text-center">
+                <div className="flex items-center justify-center gap-1.5 text-xs text-muted mb-1">
+                  <Mail className="h-3.5 w-3.5 text-brand-fg" />
+                  <span>Reset code sent to</span>
+                </div>
+                <p className="font-semibold text-fg text-sm">{email}</p>
+              </div>
+
+              <div>
+                <label className="label text-center block" htmlFor="reset-otp">Enter 6-digit code</label>
+                <input
+                  id="reset-otp"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={6}
+                  required
+                  autoFocus
+                  autoComplete="one-time-code"
+                  placeholder="······"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  className="input text-center text-2xl font-bold font-mono tracking-[0.4em] py-3 focus:border-brand"
+                />
+              </div>
+
+              <div>
+                <label className="label" htmlFor="new-password">New password</label>
+                <input
+                  id="new-password"
+                  type="password"
+                  className="input"
+                  required
+                  minLength={8}
+                  placeholder="At least 8 characters"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  autoComplete="new-password"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading || otp.trim().length !== 6 || newPassword.length < 8}
+                className="btn-primary w-full py-2.5 text-sm"
+              >
+                {loading ? 'Updating…' : 'Reset password & Sign in'}
+              </button>
+
+              <div className="flex items-center justify-between pt-1 text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForgotStep('email');
+                    setError(null);
+                  }}
+                  className="flex items-center gap-1 text-muted hover:text-fg transition-colors"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  Change email
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleForgotResend}
+                  disabled={resendCooldown > 0 || resending}
+                  className="flex items-center gap-1 font-medium text-brand-fg disabled:text-subtle disabled:cursor-not-allowed transition-colors"
+                >
+                  <RefreshCw className={`h-3 w-3 ${resending ? 'animate-spin' : ''}`} />
+                  {resending
+                    ? 'Sending…'
+                    : resendCooldown > 0
+                    ? `Resend in ${resendCooldown}s`
+                    : 'Resend code'}
+                </button>
+              </div>
+            </form>
+          )
+        ) : regStep === 'details' ? (
           <form onSubmit={handleDetailsSubmit} className="space-y-3">
             {!isLogin && (
               <div className="grid grid-cols-2 gap-3">
@@ -217,7 +416,22 @@ export default function AuthModal({ open, onClose, context, initialMode = 'login
               />
             </div>
             <div>
-              <label className="label" htmlFor="password">Password</label>
+              <div className="flex items-center justify-between">
+                <label className="label" htmlFor="password">Password</label>
+                {isLogin && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode('forgot');
+                      setForgotStep('email');
+                      setError(null);
+                    }}
+                    className="text-xs text-brand-fg hover:underline font-medium"
+                  >
+                    Forgot password?
+                  </button>
+                )}
+              </div>
               <input
                 id="password"
                 type="password"
@@ -248,7 +462,7 @@ export default function AuthModal({ open, onClose, context, initialMode = 'login
             </button>
           </form>
         ) : (
-          /* Step 2: OTP Entry */
+          /* Step 2: Register OTP Entry */
           <form onSubmit={handleOtpSubmit} className="space-y-4">
             <div className="rounded-xl border border-line bg-surface-2 p-3 text-center">
               <div className="flex items-center justify-center gap-1.5 text-xs text-muted mb-2">
