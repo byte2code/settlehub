@@ -58,7 +58,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/", "/health", "/api/v1/health", "/api/v1/health/ready", "/error").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/send-otp", "/api/v1/auth/verify-otp", "/api/v1/auth/forgot-password", "/api/v1/auth/reset-password").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/send-otp", "/api/v1/auth/verify-otp", "/api/v1/auth/forgot-password", "/api/v1/auth/reset-password", "/api/v1/auth/google", "/api/v1/internal/maintenance/purge").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/auth/config").permitAll()
                 // STOMP authenticates on CONNECT, see WebSocketAuthInterceptor
                 .requestMatchers("/ws", "/ws/**").permitAll()
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")

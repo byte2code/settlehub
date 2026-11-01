@@ -23,7 +23,7 @@ public class AdminService {
     private static final int PAGE = 25;
     /** Table names are never user input; this fixed list is all that is ever inspected. */
     private static final List<String> TABLES = List.of("users", "expense_groups", "group_members", "expenses",
-        "expense_splits", "expense_payers", "settlements", "user_notifications", "activities", "push_subscriptions", "email_verifications");
+        "expense_splits", "expense_payers", "settlements", "user_notifications", "activities", "expense_receipts", "expense_reactions", "expense_comments", "push_subscriptions", "email_verifications");
 
     private final UserRepository userRepository;
     private final GroupRepository groupRepository;

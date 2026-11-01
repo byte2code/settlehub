@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # End-to-end smoke test against a LOCAL backend (scripts/dev-backend.sh). Refuses to run against anything else.
-# Uses the test accounts from .env.local; passwords are never printed.
+# Uses the test accounts from .env.local (or SETTLEHUB_* variables, as in CI); passwords are never printed.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 BASE="${BASE:-http://localhost:8080/api/v1}"
 case "$BASE" in http://localhost:*|http://127.0.0.1:*) ;; *) echo "Refusing to run against $BASE"; exit 2;; esac
-set -a; source .env.local; set +a
+set -a; [ -f .env.local ] && source .env.local; set +a
 
 pass=0; fail=0
 check() { # name, expected, actual

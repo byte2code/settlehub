@@ -47,7 +47,7 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
         return !(path.endsWith("/auth/login") || path.endsWith("/auth/register")
                 || path.endsWith("/auth/send-otp") || path.endsWith("/auth/verify-otp")
                 || path.endsWith("/auth/forgot-password") || path.endsWith("/auth/reset-password")
-                || path.endsWith("/auth/me/password"));
+                || path.endsWith("/auth/me/password") || path.endsWith("/auth/google"));
     }
 
     @Override

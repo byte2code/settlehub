@@ -21,6 +21,12 @@ public interface UserNotificationRepository extends JpaRepository<UserNotificati
         """)
     List<UserNotification> findByUserId(@Param("userId") UUID userId, Pageable pageable);
 
+    List<UserNotification> findAllByUserId(UUID userId);
+
+    @Modifying
+    @Query("DELETE FROM UserNotification n WHERE n.createdAt < :cutoff")
+    int deleteOlderThan(@Param("cutoff") java.time.Instant cutoff);
+
     @Query("SELECT COUNT(n) FROM UserNotification n WHERE n.userId = :userId AND n.read = false")
     long countUnreadByUserId(@Param("userId") UUID userId);
 

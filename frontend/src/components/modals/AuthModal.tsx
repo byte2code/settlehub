@@ -1,3 +1,4 @@
+import { GoogleSignInButton } from './GoogleSignInButton';
 import { useEffect, useState, type FormEvent } from 'react';
 import { ArrowLeft, KeyRound, LogIn, Mail, RefreshCw } from 'lucide-react';
 import { api } from '../../lib/api';
@@ -387,6 +388,13 @@ export default function AuthModal({ open, onClose, context, initialMode = 'login
             </form>
           )
         ) : regStep === 'details' ? (
+          <div className="space-y-3">
+          <GoogleSignInButton
+            onCredential={(idToken) => {
+              setError(null);
+              api.googleSignIn(idToken).then((res) => { signIn(res); onClose(); }).catch((err) => setError(errorMessage(err)));
+            }}
+          />
           <form onSubmit={handleDetailsSubmit} className="space-y-3">
             {!isLogin && (
               <div className="grid grid-cols-2 gap-3">
@@ -473,6 +481,7 @@ export default function AuthModal({ open, onClose, context, initialMode = 'login
               {loading ? 'Please wait…' : isLogin ? 'Sign in' : 'Continue'}
             </button>
           </form>
+          </div>
         ) : (
           /* Step 2: Register OTP Entry */
           <form onSubmit={handleOtpSubmit} className="space-y-4">

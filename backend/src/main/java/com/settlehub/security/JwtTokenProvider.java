@@ -59,20 +59,29 @@ public class JwtTokenProvider {
         Date now = new Date();
         return Jwts.builder()
             .subject(userPrincipal.getId().toString())
+            .claim("tv", userPrincipal.getTokenVersion())
             .issuedAt(now)
             .expiration(new Date(now.getTime() + jwtExpirationMs))
             .signWith(key, Jwts.SIG.HS256)
             .compact();
     }
 
-    /** Returns the user id of a valid, unexpired token. */
-    public Optional<UUID> parseUserId(String token) {
+    /** A valid token's owner and the session version it was issued under (tokens from before 4.0 count as version 0). */
+    public record Parsed(UUID userId, int tokenVersion) {}
+
+    public Optional<Parsed> parse(String token) {
         if (token == null || token.isBlank()) return Optional.empty();
         try {
             Claims claims = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
-            return Optional.of(UUID.fromString(claims.getSubject()));
+            Number tv = claims.get("tv", Number.class);
+            return Optional.of(new Parsed(UUID.fromString(claims.getSubject()), tv == null ? 0 : tv.intValue()));
         } catch (JwtException | IllegalArgumentException e) {
             return Optional.empty();
         }
+    }
+
+    /** Returns the user id of a valid, unexpired token. */
+    public Optional<UUID> parseUserId(String token) {
+        return parse(token).map(Parsed::userId);
     }
 }

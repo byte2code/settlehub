@@ -100,7 +100,7 @@ class SettleHubIntegrationTest extends ApiTestSupport {
         perform(post("/api/v1/auth/me/password"), alice, Map.of("currentPassword", "wrong", "newPassword", "newpassword1"))
             .andExpect(status().isBadRequest());
         perform(post("/api/v1/auth/me/password"), alice, Map.of("currentPassword", "password123", "newPassword", "newpassword1"))
-            .andExpect(status().isNoContent());
+            .andExpect(status().isOk()).andExpect(jsonPath("$.token").isString());
         perform(post("/api/v1/auth/login"), null, Map.of("email", alice.email(), "password", "newpassword1"))
             .andExpect(status().isOk());
     }

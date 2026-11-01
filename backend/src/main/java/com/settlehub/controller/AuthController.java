@@ -19,12 +19,25 @@ public class AuthController {
     private final AuthService authService;
     private final com.settlehub.service.EmailVerificationService emailVerificationService;
     private final com.settlehub.service.BadgeService badgeService;
+    private final com.settlehub.service.AccountService accountService;
 
     public AuthController(AuthService authService, com.settlehub.service.EmailVerificationService emailVerificationService,
-                          com.settlehub.service.BadgeService badgeService) {
+                          com.settlehub.service.BadgeService badgeService,
+                          com.settlehub.service.AccountService accountService) {
+        this.accountService = accountService;
         this.authService = authService;
         this.badgeService = badgeService;
         this.emailVerificationService = emailVerificationService;
+    }
+
+    @PostMapping("/google")
+    public AuthResponse google(@RequestBody Map<String, String> body) {
+        return authService.googleSignIn(body.get("idToken"));
+    }
+
+    @GetMapping("/config")
+    public Map<String, Object> authConfig() {
+        return Map.of("googleEnabled", authService.googleEnabled());
     }
 
     @PostMapping("/send-otp")
@@ -72,10 +85,25 @@ public class AuthController {
     }
 
     @PostMapping("/me/password")
-    public ResponseEntity<Void> changePassword(@AuthenticationPrincipal UserPrincipal principal,
-                                               @Valid @RequestBody ChangePasswordRequest request) {
-        authService.changePassword(principal.getId(), request);
-        return ResponseEntity.noContent().build();
+    public Map<String, String> changePassword(@AuthenticationPrincipal UserPrincipal principal,
+                                              @Valid @RequestBody ChangePasswordRequest request) {
+        return Map.of("token", authService.changePassword(principal.getId(), request));
+    }
+
+    @GetMapping("/me/export")
+    public Map<String, Object> export(@AuthenticationPrincipal UserPrincipal principal) {
+        return accountService.export(principal.getId());
+    }
+
+    @DeleteMapping("/me")
+    public Map<String, Boolean> deleteAccount(@AuthenticationPrincipal UserPrincipal principal, @RequestBody Map<String, String> body) {
+        accountService.delete(principal.getId(), body.get("password"), body.get("confirmEmail"));
+        return Map.of("success", true);
+    }
+
+    @PostMapping("/me/sessions/revoke-others")
+    public Map<String, String> revokeOtherSessions(@AuthenticationPrincipal UserPrincipal principal) {
+        return Map.of("token", authService.revokeOtherSessions(principal.getId()));
     }
 
     @PostMapping("/forgot-password")

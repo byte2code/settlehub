@@ -26,10 +26,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-        tokenProvider.parseUserId(extractBearer(request.getHeader("Authorization"))).ifPresent(userId -> {
+        tokenProvider.parse(extractBearer(request.getHeader("Authorization"))).ifPresent(parsed -> {
             try {
-                UserPrincipal principal = userDetailsService.loadUserById(userId);
-                if (principal.isEnabled() && principal.isAccountNonLocked()) {
+                UserPrincipal principal = userDetailsService.loadUserById(parsed.userId());
+                if (principal.isEnabled() && principal.isAccountNonLocked() && principal.getTokenVersion() == parsed.tokenVersion()) {
                     SecurityContextHolder.getContext().setAuthentication(
                         new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities()));
                 }

@@ -37,6 +37,7 @@ public class ExpenseService {
     private final WebSocketEventPublisher events;
     private final NotificationService notificationService;
     private final int maxReceiptChars;
+    private final long maxGroupReceiptChars;
 
     public ExpenseService(ExpenseRepository expenseRepository,
                           ExpenseReceiptRepository receiptRepository,
@@ -49,7 +50,8 @@ public class ExpenseService {
                           ActivityService activityService,
                           WebSocketEventPublisher events,
                           NotificationService notificationService,
-                          @Value("${app.receipts.max-chars:480000}") int maxReceiptChars) {
+                          @Value("${app.receipts.max-chars:480000}") int maxReceiptChars,
+                          @Value("${app.receipts.group-max-chars:15000000}") long maxGroupReceiptChars) {
         this.expenseRepository = expenseRepository;
         this.receiptRepository = receiptRepository;
         this.groupRepository = groupRepository;
@@ -62,6 +64,7 @@ public class ExpenseService {
         this.events = events;
         this.notificationService = notificationService;
         this.maxReceiptChars = maxReceiptChars;
+        this.maxGroupReceiptChars = maxGroupReceiptChars;
     }
 
     @Transactional
@@ -240,6 +243,9 @@ public class ExpenseService {
         }
         if (value.length() > maxReceiptChars) {
             throw new IllegalArgumentException("Receipt image is too large; please use a smaller photo");
+        }
+        if (maxGroupReceiptChars > 0 && receiptRepository.totalCharsForGroup(expense.getGroup().getId()) + value.length() > maxGroupReceiptChars) {
+            throw new IllegalArgumentException("This group has used up its receipt storage. Remove some old receipts first.");
         }
         receiptRepository.save(new ExpenseReceipt(expense.getId(), value));
         expense.setHasReceipt(true);

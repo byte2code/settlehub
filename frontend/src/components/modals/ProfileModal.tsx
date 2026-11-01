@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState, type FormEvent } from 'react';
 import { UserRound } from 'lucide-react';
-import { api } from '../../lib/api';
+import { api, setToken } from '../../lib/api';
 import { errorMessage } from '../../lib/errors';
 import { SUPPORTED_CURRENCIES } from '../../lib/money';
 import { AVATARS } from '../../lib/avatars';
@@ -14,6 +14,8 @@ import { Avatar, ErrorNote, PageSpinner } from '../ui/bits';
 import { useToast } from '../ui/Toast';
 import { useQuery } from '@tanstack/react-query';
 import { storage } from '../../lib/storage';
+
+import { AccountSection } from '../profile/AccountSection';
 
 const UpiQrPanel = lazy(() => import('../profile/UpiQrPanel'));
 const WrappedPanel = lazy(() => import('../profile/WrappedPanel'));
@@ -96,7 +98,8 @@ export default function ProfileModal({ open, onClose }: { open: boolean; onClose
     e.preventDefault();
     setError(null);
     try {
-      await api.changePassword({ currentPassword, newPassword });
+      const res = await api.changePassword({ currentPassword, newPassword });
+      setToken(res.token); // other devices are signed out; this one gets a fresh token
       setCurrentPassword('');
       setNewPassword('');
       toast.success('Password changed');
@@ -189,6 +192,8 @@ export default function ProfileModal({ open, onClose }: { open: boolean; onClose
               <input type="password" className="input" placeholder="New password (8+ characters)" required minLength={8} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} autoComplete="new-password" />
               <button type="submit" className="btn-secondary w-full">Update password</button>
             </form>
+
+            <AccountSection />
           </>
         )}
 

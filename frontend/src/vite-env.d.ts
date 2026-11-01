@@ -7,4 +7,6 @@ interface ImportMetaEnv {
   readonly VITE_PUBLIC_WEB_URL?: string;
   /** Set to "true" in dev/self-host builds to show the server picker in the navbar */
   readonly VITE_ENABLE_SERVER_CONFIG?: string;
+  /** Google OAuth client id; enables the "Continue with Google" button when set */
+  readonly VITE_GOOGLE_CLIENT_ID?: string;
 }

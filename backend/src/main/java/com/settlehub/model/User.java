@@ -53,6 +53,12 @@ public class User {
     @Column(nullable = false)
     private boolean active = true;
 
+    @Column(name = "token_version", nullable = false)
+    private int tokenVersion = 0;
+
+    @Column(name = "password_login", nullable = false)
+    private boolean passwordLogin = true;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -121,6 +127,13 @@ public class User {
 
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
+
+    public int getTokenVersion() { return tokenVersion; }
+    /** Signs the user out on every device: all previously issued tokens stop working. */
+    public void bumpTokenVersion() { this.tokenVersion++; }
+
+    public boolean isPasswordLogin() { return passwordLogin; }
+    public void setPasswordLogin(boolean passwordLogin) { this.passwordLogin = passwordLogin; }
 
     public static User placeholder(String email, String currencyCode) {
         User user = new User(email, "", email.split("@")[0], "", currencyCode);

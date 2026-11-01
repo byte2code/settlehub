@@ -1,0 +1,45 @@
+name: Smoke
+
+# Starts the real backend on its in-memory database and runs scripts/local-smoke.sh against it.
+# The accounts below are throwaway test values that exist only inside this CI run.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    env:
+      SETTLEHUB_ADMIN_EMAIL: ci-admin@example.com
+      SETTLEHUB_ADMIN_PASSWORD: ci-admin-pass-1
+      SETTLEHUB_TEST1_EMAIL: ci-test1@example.com
+      SETTLEHUB_TEST1_PASSWORD: ci-test1-pass-1
+      SETTLEHUB_TEST2_EMAIL: ci-test2@example.com
+      SETTLEHUB_TEST2_PASSWORD: ci-test2-pass-1
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Build backend
+        run: mvn -B -q -f backend/pom.xml -DskipTests package
+      - name: Start backend (in-memory database)
+        run: |
+          APP_ADMIN_EMAILS="$SETTLEHUB_ADMIN_EMAIL" \
+          APP_AUTH_VERIFICATION_BYPASS_EMAILS="$SETTLEHUB_ADMIN_EMAIL,$SETTLEHUB_TEST1_EMAIL,$SETTLEHUB_TEST2_EMAIL" \
+          AUTH_MASTER_OTP=000000 APP_DATABASE_URL_ENABLED=false \
+          nohup java -jar backend/target/*.jar > backend.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf localhost:8080/api/v1/health/ready >/dev/null && break; sleep 2; done
+          curl -sf localhost:8080/api/v1/health/ready
+      - name: Run smoke checks
+        run: scripts/local-smoke.sh
+      - name: Backend log on failure
+        if: failure()
+        run: tail -n 100 backend.log

@@ -48,10 +48,10 @@ public class WebSocketAuthInterceptor implements ChannelInterceptor {
         StompCommand command = accessor.getCommand();
         if (command == StompCommand.CONNECT) {
             String token = JwtAuthenticationFilter.extractBearer(accessor.getFirstNativeHeader("Authorization"));
-            UUID userId = tokenProvider.parseUserId(token)
+            JwtTokenProvider.Parsed parsed = tokenProvider.parse(token)
                 .orElseThrow(() -> new MessageDeliveryException("Unauthorized"));
-            UserPrincipal principal = userDetailsService.loadUserById(userId);
-            if (!principal.isEnabled() || !principal.isAccountNonLocked()) {
+            UserPrincipal principal = userDetailsService.loadUserById(parsed.userId());
+            if (!principal.isEnabled() || !principal.isAccountNonLocked() || principal.getTokenVersion() != parsed.tokenVersion()) {
                 throw new MessageDeliveryException("Unauthorized");
             }
             accessor.setUser(new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities()));

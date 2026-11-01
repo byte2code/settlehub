@@ -150,7 +150,11 @@ export const api = {
   }) =>
     request<User>('PATCH', '/auth/me', data),
   changePassword: (data: { currentPassword: string; newPassword: string }) =>
-    request<void>('POST', '/auth/me/password', data),
+    request<{ token: string }>('POST', '/auth/me/password', data),
+  revokeOtherSessions: () => request<{ token: string }>('POST', '/auth/me/sessions/revoke-others'),
+  exportMyData: () => request<Record<string, unknown>>('GET', '/auth/me/export'),
+  deleteAccount: (data: { password?: string; confirmEmail: string }) => request<{ success: boolean }>('DELETE', '/auth/me', data),
+  googleSignIn: (idToken: string) => request<AuthResponse>('POST', '/auth/google', { idToken }),
 
   // Groups
   groups: () => request<Group[]>('GET', '/groups'),

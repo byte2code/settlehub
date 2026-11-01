@@ -77,7 +77,7 @@ class ProfileAndAdminIntegrationTest extends ApiTestSupport {
     void adminPortal() throws Exception {
         perform(get("/api/v1/admin/overview"), null, null).andExpect(status().isUnauthorized());
 
-        TestUser admin = register("Root", "root-admin@example.com");
+        TestUser admin = registerOrLogin("Root", "root-admin@example.com");
         assertTrue(json(perform(get("/api/v1/auth/me"), admin, null)).get("admin").asBoolean());
 
         TestUser victim = register("Victim");

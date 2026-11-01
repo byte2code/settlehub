@@ -1,6 +1,7 @@
 package com.settlehub.service;
 
 import com.settlehub.dto.*;
+import com.settlehub.exception.BadRequestException;
 import com.settlehub.exception.ConflictException;
 import com.settlehub.exception.NotFoundException;
 import com.settlehub.model.User;
@@ -28,17 +29,19 @@ public class AuthService {
     private final JwtTokenProvider tokenProvider;
     private final EmailVerificationService emailVerificationService;
     private final AdminEmailPolicy adminEmailPolicy;
+    private final GoogleIdentityVerifier googleVerifier;
 
     public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder,
                        AuthenticationManager authenticationManager, JwtTokenProvider tokenProvider,
                        EmailVerificationService emailVerificationService,
-                       AdminEmailPolicy adminEmailPolicy) {
+                       AdminEmailPolicy adminEmailPolicy, GoogleIdentityVerifier googleVerifier) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.tokenProvider = tokenProvider;
         this.emailVerificationService = emailVerificationService;
         this.adminEmailPolicy = adminEmailPolicy;
+        this.googleVerifier = googleVerifier;
     }
 
     /**
@@ -91,6 +94,39 @@ public class AuthService {
         return new AuthResponse(tokenProvider.generateToken(UserPrincipal.create(user)), UserDto.fromEntity(user));
     }
 
+    public boolean googleEnabled() { return googleVerifier.configured(); }
+
+    /**
+     * Sign in (or sign up) with a Google ID token. Google must have verified the email; that is what makes it safe to
+     * link to an existing account or claim an invited placeholder with the same address.
+     */
+    @Transactional
+    public AuthResponse googleSignIn(String idToken) {
+        if (!googleVerifier.configured()) throw new BadRequestException("Google sign-in is not set up on this server");
+        GoogleIdentityVerifier.GoogleIdentity identity = googleVerifier.verify(idToken)
+            .orElseThrow(() -> new org.springframework.security.authentication.BadCredentialsException("Invalid Google sign-in"));
+        String email = identity.email().trim().toLowerCase(Locale.ROOT);
+        String firstName = identity.givenName() == null || identity.givenName().isBlank() ? email.split("@")[0] : identity.givenName();
+        String lastName = identity.familyName() == null ? "" : identity.familyName();
+
+        User user = userRepository.findByEmail(email).orElse(null);
+        if (user == null) {
+            user = new User(email, passwordEncoder.encode(java.util.UUID.randomUUID() + java.util.UUID.randomUUID().toString()), firstName, lastName, CurrencyUtil.DEFAULT_CURRENCY);
+            user.setPasswordLogin(false);
+        } else if (user.isPlaceholder()) {
+            user.setPlaceholder(false);
+            user.setFirstName(firstName);
+            user.setLastName(lastName);
+            user.setPasswordLogin(false);
+            user.setPassword(passwordEncoder.encode(java.util.UUID.randomUUID() + java.util.UUID.randomUUID().toString()));
+        } else if (!user.isActive()) {
+            throw new org.springframework.security.authentication.LockedException("deactivated");
+        }
+        user.setAdmin(adminEmailPolicy.isAdmin(email));
+        User saved = userRepository.save(user);
+        return new AuthResponse(tokenProvider.generateToken(UserPrincipal.create(saved)), UserDto.fromEntity(saved));
+    }
+
     @Transactional(readOnly = true)
     public UserDto getCurrentUser(UUID userId) {
         return UserDto.fromEntity(requireUser(userId));
@@ -128,14 +164,25 @@ public class AuthService {
         return updateProfile(userId, new UpdateProfileRequest(null, null, currencyCode, null, null, null, null));
     }
 
+    /** Changing the password signs out every other device; the caller gets a fresh token for this one. */
     @Transactional
-    public void changePassword(UUID userId, ChangePasswordRequest request) {
+    public String changePassword(UUID userId, ChangePasswordRequest request) {
         User user = requireUser(userId);
         if (!passwordEncoder.matches(request.currentPassword(), user.getPassword())) {
             throw new IllegalArgumentException("Current password is incorrect");
         }
         user.setPassword(passwordEncoder.encode(request.newPassword()));
-        userRepository.save(user);
+        user.setPasswordLogin(true);
+        user.bumpTokenVersion();
+        return tokenProvider.generateToken(UserPrincipal.create(userRepository.save(user)));
+    }
+
+    /** "Sign out other devices": old tokens stop working, the caller keeps a new one. */
+    @Transactional
+    public String revokeOtherSessions(UUID userId) {
+        User user = requireUser(userId);
+        user.bumpTokenVersion();
+        return tokenProvider.generateToken(UserPrincipal.create(userRepository.save(user)));
     }
 
     @Transactional
@@ -151,6 +198,8 @@ public class AuthService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new NotFoundException("User not found"));
         user.setPassword(passwordEncoder.encode(request.newPassword()));
+        user.setPasswordLogin(true);
+        user.bumpTokenVersion(); // a reset signs out any device that may have been compromised
         user.setAdmin(adminEmailPolicy.isAdmin(email));
         User saved = userRepository.save(user);
 

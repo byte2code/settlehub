@@ -17,16 +17,18 @@ public class UserPrincipal implements UserDetails {
     private final String fullName;
     private final boolean enabled;
     private final boolean accountNonLocked;
+    private final int tokenVersion;
     private final Collection<? extends GrantedAuthority> authorities;
 
     public UserPrincipal(UUID id, String email, String password, String fullName, boolean enabled,
                          Collection<? extends GrantedAuthority> authorities) {
-        this(id, email, password, fullName, enabled, true, authorities);
+        this(id, email, password, fullName, enabled, true, 0, authorities);
     }
 
     public UserPrincipal(UUID id, String email, String password, String fullName, boolean enabled,
-                         boolean accountNonLocked, Collection<? extends GrantedAuthority> authorities) {
+                         boolean accountNonLocked, int tokenVersion, Collection<? extends GrantedAuthority> authorities) {
         this.accountNonLocked = accountNonLocked;
+        this.tokenVersion = tokenVersion;
         this.id = id;
         this.email = email;
         this.password = password;
@@ -46,11 +48,13 @@ public class UserPrincipal implements UserDetails {
             user.getFullName(),
             !user.isPlaceholder(),
             user.isActive(),
+            user.getTokenVersion(),
             authorities
         );
     }
 
     public UUID getId() { return id; }
+    public int getTokenVersion() { return tokenVersion; }
     public String getFullName() { return fullName; }
 
     @Override

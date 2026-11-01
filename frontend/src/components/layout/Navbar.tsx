@@ -31,7 +31,7 @@ export function Navbar({ onSignIn }: { onSignIn: () => void }) {
           <span className="truncate text-lg font-bold tracking-tight text-fg">
             Settle<span className="text-brand-fg">Hub</span>
           </span>
-          <span className="chip hidden border-emerald-500/25 bg-emerald-500/10 text-brand-fg sm:inline-flex">3.1</span>
+          <span className="chip hidden border-emerald-500/25 bg-emerald-500/10 text-brand-fg sm:inline-flex">4.0</span>
         </Link>
 
         <nav className="flex shrink-0 items-center gap-1 sm:gap-2">

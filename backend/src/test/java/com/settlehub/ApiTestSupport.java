@@ -48,6 +48,20 @@ abstract class ApiTestSupport {
         return new TestUser(UUID.fromString(body.get("user").get("id").asString()), email, body.get("token").asString());
     }
 
+    /** Test classes share one in-memory database, so fixed accounts (like the admin) may already exist. */
+    protected TestUser registerOrLogin(String firstName, String email) throws Exception {
+        int status = perform(post("/api/v1/auth/register"), null,
+            Map.of("email", email, "password", "password123", "firstName", firstName, "currencyCode", "INR", "otp", "000000"))
+            .andReturn().getResponse().getStatus();
+        if (status == 201) return loginUser(email);
+        return loginUser(email);
+    }
+
+    protected TestUser loginUser(String email) throws Exception {
+        JsonNode body = json(perform(post("/api/v1/auth/login"), null, Map.of("email", email, "password", "password123")).andExpect(status().isOk()));
+        return new TestUser(UUID.fromString(body.get("user").get("id").asString()), email, body.get("token").asString());
+    }
+
     protected UUID createGroup(TestUser owner, String name, List<String> memberEmails) throws Exception {
         JsonNode group = json(perform(post("/api/v1/groups"), owner,
             Map.of("name", name, "groupType", "trip", "currencyCode", "INR", "memberEmails", memberEmails))
