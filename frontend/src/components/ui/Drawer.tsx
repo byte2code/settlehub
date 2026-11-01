@@ -53,7 +53,7 @@ export function Drawer({ open, onClose, title, subtitle, children }: DrawerProps
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="relative flex max-h-[88dvh] w-full flex-col rounded-t-3xl border border-line bg-surface shadow-2xl outline-none sm:max-h-none sm:w-[26rem] sm:rounded-none sm:rounded-l-3xl"
+        className="relative flex sheet-drawer w-full flex-col rounded-t-3xl border border-line bg-surface shadow-2xl outline-none sm:!max-h-none sm:w-[26rem] sm:rounded-none sm:rounded-l-3xl"
       >
         <div className="mx-auto mt-2 h-1.5 w-10 rounded-full bg-surface-3 sm:hidden" aria-hidden />
         <div className="flex items-start gap-3 border-b border-line p-5 pb-4">

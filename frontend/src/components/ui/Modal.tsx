@@ -72,7 +72,7 @@ export function Modal({ open, onClose, title, subtitle, icon, children, footer, 
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className={`relative flex max-h-[92dvh] w-full flex-col rounded-t-3xl border border-line bg-surface shadow-2xl outline-none sm:rounded-3xl ${SIZES[size]}`}
+        className={`relative flex sheet-modal w-full flex-col rounded-t-3xl border border-line bg-surface shadow-2xl outline-none sm:rounded-3xl ${SIZES[size]}`}
       >
         <div className="flex items-start gap-3 border-b border-line p-5 pb-4">
           {icon && (

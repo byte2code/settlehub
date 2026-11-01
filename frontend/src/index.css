@@ -154,3 +154,16 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Older Android WebViews don't know dvh or overflow:clip. @supports keeps the safe value there
+   (plain duplicate declarations get collapsed by the production minifier). */
+.sheet-drawer { max-height: 88vh; }
+.sheet-modal { max-height: 92vh; }
+.clip-safe { overflow: hidden; }
+@supports (height: 1dvh) {
+  .sheet-drawer { max-height: 88dvh; }
+  .sheet-modal { max-height: 92dvh; }
+}
+@supports (overflow: clip) {
+  .clip-safe { overflow: clip; }
+}

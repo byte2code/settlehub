@@ -26,7 +26,8 @@ export function drawAwards(canvas: HTMLCanvasElement, groupName: string, awards:
     const y = 300 + i * rowH;
     c.fillStyle = 'rgba(255,255,255,0.14)';
     c.beginPath();
-    c.roundRect(60, y, W - 120, rowH - 20, 28);
+    if (typeof c.roundRect === 'function') c.roundRect(60, y, W - 120, rowH - 20, 28);
+    else c.rect(60, y, W - 120, rowH - 20); // older WebViews: square corners instead of a failed card
     c.fill();
     c.fillStyle = '#fff';
     c.font = '700 70px system-ui, sans-serif';

@@ -13,6 +13,7 @@ import { copy } from '../../lib/copy';
 import { haptic } from '../../lib/haptics';
 import { useSpeech, type SpeechError } from '../../hooks/useSpeech';
 import { enqueue, isOfflineError } from '../../lib/outbox';
+import { uuidv4 } from '../../lib/uuid';
 import { ReceiptScanPrompt } from './ReceiptScanPrompt';
 import { validateSplit } from '../../lib/split';
 import { useInvalidateGroup } from '../../hooks/queries';
@@ -101,7 +102,7 @@ export default function ExpenseFormModal({ group, expense, initialPayerId, onClo
   const [rateStatus, setRateStatus] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<ReceiptState>(expense?.hasReceipt ? { kind: 'keep' } : { kind: 'none' });
   // One id per form: a retry or a later sync of the same expense can never create a duplicate
-  const [clientId] = useState(() => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`.replace(/\./g, '')));
+  const [clientId] = useState(uuidv4);
   const [repeat, setRepeat] = useState<'NONE' | 'WEEKLY' | 'MONTHLY'>('NONE');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
