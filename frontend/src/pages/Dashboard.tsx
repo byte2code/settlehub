@@ -49,7 +49,7 @@ export function Dashboard() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 px-4 py-8 animate-fade-in">
-      <section className="card relative flex flex-col justify-between gap-6 overflow-hidden p-5 sm:p-6 md:flex-row md:items-center">
+      <section className="card relative flex flex-col justify-between gap-6 overflow-clip p-5 sm:p-6 md:flex-row md:items-center">
         <div className="relative z-10 space-y-1">
           <h1 className="text-2xl font-extrabold tracking-tight text-fg sm:text-3xl">Hi, {user.firstName} 👋</h1>
           <p className="text-sm text-muted">

@@ -22,3 +22,16 @@ services:
         generateValue: true
       # Optional, set in the dashboard: APP_CORS_ALLOWED_ORIGINS for a custom frontend domain.
       # Leave it unset otherwise; the default allows *.pages.dev, localhost and the Android app.
+      # Secrets below are set in the Render dashboard only (sync: false keeps values out of git).
+      - key: APP_ADMIN_EMAILS
+        sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      - key: BREVO_SENDER_EMAIL
+        sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: FCM_SERVICE_ACCOUNT_JSON
+        sync: false
