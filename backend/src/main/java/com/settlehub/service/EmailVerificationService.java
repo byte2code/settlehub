@@ -225,13 +225,12 @@ public class EmailVerificationService {
             throw new BadRequestException("Too many failed attempts. Please request a new code.");
         }
 
-        boolean isDevMaster = matchesDevMaster(otp.trim());
-        if (!verification.isVerified() && !isDevMaster) {
-            if (!passwordEncoder.matches(otp.trim(), verification.getOtpHash())) {
-                verification.incrementAttempts();
-                verificationRepository.save(verification);
-                throw new BadRequestException("Invalid verification code.");
-            }
+        // The code must always match, even if the email was verified earlier: otherwise anyone could
+        // register an address whose owner verified it but hasn't finished signing up yet.
+        if (!matchesDevMaster(otp.trim()) && !passwordEncoder.matches(otp.trim(), verification.getOtpHash())) {
+            verification.incrementAttempts();
+            verificationRepository.save(verification);
+            throw new BadRequestException("Invalid verification code.");
         }
 
         // Consume the verification record so it cannot be re-used

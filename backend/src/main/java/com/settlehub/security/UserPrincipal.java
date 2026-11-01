@@ -16,10 +16,17 @@ public class UserPrincipal implements UserDetails {
     private final String password;
     private final String fullName;
     private final boolean enabled;
+    private final boolean accountNonLocked;
     private final Collection<? extends GrantedAuthority> authorities;
 
     public UserPrincipal(UUID id, String email, String password, String fullName, boolean enabled,
                          Collection<? extends GrantedAuthority> authorities) {
+        this(id, email, password, fullName, enabled, true, authorities);
+    }
+
+    public UserPrincipal(UUID id, String email, String password, String fullName, boolean enabled,
+                         boolean accountNonLocked, Collection<? extends GrantedAuthority> authorities) {
+        this.accountNonLocked = accountNonLocked;
         this.id = id;
         this.email = email;
         this.password = password;
@@ -37,7 +44,8 @@ public class UserPrincipal implements UserDetails {
             user.getEmail(),
             user.getPassword(),
             user.getFullName(),
-            !user.isPlaceholder() && user.isActive(),
+            !user.isPlaceholder(),
+            user.isActive(),
             authorities
         );
     }
@@ -58,7 +66,7 @@ public class UserPrincipal implements UserDetails {
     public boolean isAccountNonExpired() { return true; }
 
     @Override
-    public boolean isAccountNonLocked() { return true; }
+    public boolean isAccountNonLocked() { return accountNonLocked; }
 
     @Override
     public boolean isCredentialsNonExpired() { return true; }

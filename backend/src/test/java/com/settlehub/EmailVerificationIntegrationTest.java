@@ -123,4 +123,20 @@ class EmailVerificationIntegrationTest extends ApiTestSupport {
                 "email", "test1@settlehub.com", "otp", "000000", "newPassword", "hijacked123"))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    @DisplayName("A verified-but-unregistered email can't be claimed with a made-up code")
+    void verifiedEmailStillNeedsTheCode() throws Exception {
+        String email = "pending_" + java.util.UUID.randomUUID().toString().substring(0, 8) + "@realcompany.com";
+        perform(post("/api/v1/auth/send-otp"), null, Map.of("email", email)).andExpect(status().isOk());
+        // owner verifies with the (dev master) code, but does not finish registering
+        perform(post("/api/v1/auth/verify-otp"), null, Map.of("email", email, "code", "000000")).andExpect(status().isOk());
+
+        perform(post("/api/v1/auth/register"), null, Map.of("email", email, "password", "password123",
+            "firstName", "Squatter", "currencyCode", "INR", "otp", "123456"))
+            .andExpect(status().isBadRequest());
+        perform(post("/api/v1/auth/register"), null, Map.of("email", email, "password", "password123",
+            "firstName", "Owner", "currencyCode", "INR", "otp", "000000"))
+            .andExpect(status().isCreated());
+    }
 }

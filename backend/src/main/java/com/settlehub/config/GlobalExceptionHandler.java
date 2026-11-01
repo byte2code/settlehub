@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -58,6 +59,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DisabledException.class)
     public ResponseEntity<Map<String, Object>> handleDisabled(DisabledException ex) {
         return build(HttpStatus.UNAUTHORIZED, "This account has not been activated yet. Sign up with this email to claim it.");
+    }
+
+    @ExceptionHandler(LockedException.class)
+    public ResponseEntity<Map<String, Object>> handleLocked(LockedException ex) {
+        return build(HttpStatus.FORBIDDEN, "This account has been deactivated. Please contact the SettleHub admin.");
     }
 
     @ExceptionHandler(AuthenticationException.class)

@@ -137,7 +137,7 @@ flowchart TD
 | Frontend | React 19, TypeScript, Vite, Tailwind CSS v4, React Router, TanStack Query |
 | PWA | `vite-plugin-pwa` (Workbox): precached app shell, API never cached, update prompt |
 | Mobile | Capacitor 8 (Android) |
-| Tests | JUnit + MockMvc (55 backend tests on H2), Vitest (28 frontend tests), both in CI; `scripts/local-smoke.sh` for end-to-end checks against a local backend |
+| Tests | JUnit + MockMvc (56 backend tests on H2), Vitest (28 frontend tests), both in CI; `scripts/local-smoke.sh` for end-to-end checks against a local backend |
 
 ### Project layout
 

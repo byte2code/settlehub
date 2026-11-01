@@ -51,6 +51,9 @@ public class WebSocketAuthInterceptor implements ChannelInterceptor {
             UUID userId = tokenProvider.parseUserId(token)
                 .orElseThrow(() -> new MessageDeliveryException("Unauthorized"));
             UserPrincipal principal = userDetailsService.loadUserById(userId);
+            if (!principal.isEnabled() || !principal.isAccountNonLocked()) {
+                throw new MessageDeliveryException("Unauthorized");
+            }
             accessor.setUser(new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities()));
         } else if (command == StompCommand.SUBSCRIBE) {
             UUID userId = currentUserId(accessor.getUser());

@@ -29,7 +29,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         tokenProvider.parseUserId(extractBearer(request.getHeader("Authorization"))).ifPresent(userId -> {
             try {
                 UserPrincipal principal = userDetailsService.loadUserById(userId);
-                if (principal.isEnabled()) {
+                if (principal.isEnabled() && principal.isAccountNonLocked()) {
                     SecurityContextHolder.getContext().setAuthentication(
                         new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities()));
                 }

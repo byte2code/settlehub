@@ -105,8 +105,9 @@ class ProfileAndAdminIntegrationTest extends ApiTestSupport {
             .andExpect(status().isOk()).andExpect(jsonPath("$.active").value(false));
         // The victim's existing token stops working, and they can't sign in
         assertEquals(401, perform(get("/api/v1/auth/me"), victim, null).andReturn().getResponse().getStatus());
-        assertTrue(perform(post("/api/v1/auth/login"), null, Map.of("email", victim.email(), "password", "password123"))
-            .andReturn().getResponse().getStatus() >= 400);
+        perform(post("/api/v1/auth/login"), null, Map.of("email", victim.email(), "password", "password123"))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("deactivated")));
 
         perform(patch("/api/v1/admin/users/" + victim.id() + "/active"), admin, Map.of("active", true)).andExpect(status().isOk());
         perform(get("/api/v1/auth/me"), victim, null).andExpect(status().isOk());
