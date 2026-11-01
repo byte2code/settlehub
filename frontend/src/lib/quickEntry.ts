@@ -1,3 +1,5 @@
+import { wordsToDigits } from './numberWords';
+
 /**
  * Offline "quick entry" parser: turns "Dinner at Brittos 1.5k paid by Alice" into form fields.
  * Pure function, no network, no AI cost.
@@ -7,6 +9,8 @@ export interface QuickEntryResult {
   description?: string;
   category?: string;
   payerId?: string;
+  /** The spoken/typed first name matched more than one member, so nobody was picked. */
+  ambiguousPayer?: string;
 }
 
 const CATEGORY_KEYWORDS: [string, RegExp][] = [
@@ -21,7 +25,7 @@ const CATEGORY_KEYWORDS: [string, RegExp][] = [
 const FILLER = /\b(paid|by|split|equal|equally|for|with|inr|rs|at|on)\b/gi;
 
 export function parseQuickEntry(input: string, members: { userId: string; name: string }[]): QuickEntryResult {
-  let text = input.trim();
+  let text = wordsToDigits(input.trim());
   if (!text) return {};
   const result: QuickEntryResult = {};
 
@@ -48,7 +52,9 @@ export function parseQuickEntry(input: string, members: { userId: string; name: 
     if (!firstName) continue;
     const pattern = new RegExp(`(?:paid\\s+by|by|from)?\\s*\\b${firstName}\\b(?:\\s+paid)?`, 'i');
     if (pattern.test(text)) {
-      result.payerId = member.userId;
+      const sameFirstName = members.filter((m) => m.name.split(' ')[0].toLowerCase() === firstName.toLowerCase()).length > 1;
+      if (sameFirstName) result.ambiguousPayer = member.name.split(' ')[0];
+      else result.payerId = member.userId;
       text = text.replace(pattern, ' ');
       break;
     }

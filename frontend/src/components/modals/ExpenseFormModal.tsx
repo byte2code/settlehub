@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react';
-import { AlertCircle, ArrowRightLeft, Camera, CheckCircle, Coins, Percent, Receipt, Sparkles, Trash2, Users } from 'lucide-react';
+import { AlertCircle, ArrowRightLeft, Camera, CheckCircle, Coins, Mic, MicOff, Percent, Receipt, Sparkles, Trash2, Users } from 'lucide-react';
 import { api } from '../../lib/api';
 import { CATEGORIES } from '../../lib/categories';
 import { fromDateInput, toDateInput } from '../../lib/dates';
@@ -11,6 +11,7 @@ import { parseQuickEntry } from '../../lib/quickEntry';
 import { evalAmount, isExpression } from '../../lib/calc';
 import { copy } from '../../lib/copy';
 import { haptic } from '../../lib/haptics';
+import { useSpeech, type SpeechError } from '../../hooks/useSpeech';
 import { validateSplit } from '../../lib/split';
 import { useInvalidateGroup } from '../../hooks/queries';
 import { useCurrentUser } from '../../hooks/useAuth';
@@ -120,8 +121,8 @@ export default function ExpenseFormModal({ group, expense, initialPayerId, onClo
   );
   const canSave = validation.valid && form.description.trim().length > 0;
 
-  const applyQuickEntry = () => {
-    const parsed = parseQuickEntry(quickText, group.members);
+  const applyQuickEntry = (text: string = quickText) => {
+    const parsed = parseQuickEntry(text, group.members);
     setForm((f) => ({
       ...f,
       description: parsed.description ?? f.description,
@@ -131,8 +132,24 @@ export default function ExpenseFormModal({ group, expense, initialPayerId, onClo
       multiPayer: parsed.payerId ? false : f.multiPayer,
       inputCurrency: parsed.amount ? currency : f.inputCurrency,
     }));
-    toast.info('Filled in — check and save');
+    if (parsed.ambiguousPayer) toast.info(`Which ${parsed.ambiguousPayer}? Pick who paid below.`);
+    else if (Number(parsed.amount) > 1_000_000) toast.info('That is a big amount, so please double-check it.');
+    else toast.info('Filled in — check and save');
   };
+
+  const speech = useSpeech(
+    (text) => {
+      setQuickText(text);
+      applyQuickEntry(text);
+    },
+    (e: SpeechError) =>
+      toast.error(
+        e === 'denied' ? 'Microphone access is blocked. Allow it in your browser settings, or type instead.'
+        : e === 'no-speech' ? 'Didn’t catch that. Try again a bit closer to the mic.'
+        : e === 'unavailable' ? 'Voice needs an internet connection. You can type instead.'
+        : 'Voice entry didn’t work this time. You can type instead.',
+      ),
+  );
 
   const changeInputCurrency = async (code: string) => {
     set('inputCurrency', code);
@@ -245,8 +262,22 @@ export default function ExpenseFormModal({ group, expense, initialPayerId, onClo
                 }}
                 placeholder="e.g. Dinner at Brittos 1.5k paid by Alice"
               />
-              <button type="button" className="btn-secondary shrink-0" onClick={applyQuickEntry} disabled={!quickText.trim()}>Fill</button>
+              {speech.supported && (
+                <button
+                  type="button"
+                  className={`btn-secondary shrink-0 ${speech.listening ? 'border-rose-500 text-neg' : ''}`}
+                  onClick={speech.listening ? speech.stop : speech.start}
+                  aria-label={speech.listening ? 'Stop listening' : 'Speak the expense'}
+                  aria-pressed={speech.listening}
+                  title="Say it, like “Dinner fifteen hundred paid by Rohan”"
+                >
+                  {speech.listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                </button>
+              )}
+              <button type="button" className="btn-secondary shrink-0" onClick={() => applyQuickEntry()} disabled={!quickText.trim()}>Fill</button>
             </div>
+            {speech.listening && <p className="mt-1 text-[11px] text-brand-fg" role="status">Listening… {speech.interim}</p>}
+            {speech.supported && !speech.listening && <p className="mt-1 text-[10px] text-subtle">Voice uses your browser’s speech service (Chrome sends audio to Google).</p>}
           </div>
         )}
 
