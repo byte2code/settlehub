@@ -67,4 +67,7 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
 
     @Query("SELECT COUNT(e) FROM Expense e WHERE e.deletedAt IS NULL AND e.isPayment = false")
     long countActive();
+
+    @Query("SELECT e.id FROM Expense e WHERE e.group.id = :groupId AND e.deletedAt IS NULL AND e.isPayment = false")
+    List<UUID> findActiveIdsByGroupId(@Param("groupId") UUID groupId);
 }

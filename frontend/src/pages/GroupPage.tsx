@@ -5,7 +5,7 @@ import { Activity, Archive, ArchiveRestore, ArrowLeft, BarChart3, CheckCircle2, 
 import { api } from '../lib/api';
 import { errorMessage } from '../lib/errors';
 import { formatMoney } from '../lib/money';
-import { keys, useBalances, useExpenses, useGroup, useInvalidateGroup, useMarkGroupNotificationsRead, useSettlements } from '../hooks/queries';
+import { keys, useBalances, useEngagement, useExpenses, useGroup, useInvalidateGroup, useMarkGroupNotificationsRead, useSettlements } from '../hooks/queries';
 import { useCurrentUser } from '../hooks/useAuth';
 import { useGroupSocket, type GroupSocketEvent } from '../hooks/useGroupSocket';
 import type { DebtRepayment, Expense, Settlement } from '../types';
@@ -15,6 +15,7 @@ import { BudgetBar } from '../components/group/BudgetBar';
 import { ExpenseList } from '../components/group/ExpenseList';
 import { SettlementList } from '../components/group/SettlementList';
 import { StatsPanel } from '../components/group/StatsPanel';
+import { AwardsPanel } from '../components/group/AwardsPanel';
 import { ErrorNote, PageSpinner } from '../components/ui/bits';
 import { GroupTypeIcon } from '../components/ui/GroupTypeIcon';
 import { useConfirm } from '../components/ui/ConfirmDialog';
@@ -27,11 +28,13 @@ const ExportModal = lazy(() => import('../components/modals/ExportModal'));
 const GroupSettingsModal = lazy(() => import('../components/modals/GroupSettingsModal'));
 const ReceiptViewer = lazy(() => import('../components/modals/ReceiptViewer'));
 const WhoPaysModal = lazy(() => import('../components/group/WhoPaysModal'));
+const ExpenseThreadModal = lazy(() => import('../components/group/ExpenseThreadModal'));
 
 type Tab = 'expenses' | 'payments' | 'stats' | 'activity';
 type ModalState =
   | { kind: 'expense'; expense: Expense | null; payerId?: string }
   | { kind: 'whopays' }
+  | { kind: 'thread'; expense: Expense }
   | { kind: 'settle'; repayment: DebtRepayment | null }
   | { kind: 'invite' }
   | { kind: 'export' }
@@ -69,6 +72,7 @@ export function GroupPage() {
   const expensesQuery = useExpenses(groupId);
   const balancesQuery = useBalances(groupId);
   const settlementsQuery = useSettlements(groupId);
+  const engagementQuery = useEngagement(groupId);
   const group = groupQuery.data;
 
   const onSocketEvent = useCallback(
@@ -226,10 +230,17 @@ export function GroupPage() {
             onEdit={(expense) => setModal({ kind: 'expense', expense })}
             onDelete={deleteExpense}
             onViewReceipt={(expense) => setModal({ kind: 'receipt', expense })}
+            engagement={engagementQuery.data}
+            onOpenThread={(expense) => setModal({ kind: 'thread', expense })}
           />
         )}
         {tab === 'payments' && <SettlementList group={group} settlements={settlements} onUndo={undoSettlement} />}
-        {tab === 'stats' && <StatsPanel group={group} expenses={expenses} />}
+        {tab === 'stats' && (
+          <div className="space-y-4">
+            <StatsPanel group={group} expenses={expenses} />
+            <AwardsPanel group={group} />
+          </div>
+        )}
         {tab === 'activity' && <ActivityFeed groupId={groupId} />}
       </div>
 
@@ -244,6 +255,7 @@ export function GroupPage() {
 
       <Suspense fallback={null}>
         {modal?.kind === 'expense' && <ExpenseFormModal key={modal.expense?.id ?? `new-${modal.payerId ?? ''}`} group={group} expense={modal.expense} initialPayerId={modal.payerId} onClose={() => setModal(null)} />}
+        {modal?.kind === 'thread' && <ExpenseThreadModal group={group} expense={modal.expense} canModerate={group.myRole === 'ADMIN'} onClose={() => setModal(null)} />}
         {modal?.kind === 'whopays' && <WhoPaysModal group={group} expenses={expenses} onClose={() => setModal(null)} onAddExpense={(payerId) => setModal({ kind: 'expense', expense: null, payerId })} />}
         {modal?.kind === 'settle' && (
           <SettleUpModal key={modal.repayment ? `${modal.repayment.fromUserId}-${modal.repayment.toUserId}` : 'new'} group={group} repayment={modal.repayment} onClose={() => setModal(null)} />

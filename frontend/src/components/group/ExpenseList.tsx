@@ -3,7 +3,7 @@ import { CreditCard, Paperclip, Pencil, Search, StickyNote, Trash2 } from 'lucid
 import { CATEGORIES, getCategory } from '../../lib/categories';
 import { formatDate } from '../../lib/dates';
 import { useCurrentUser } from '../../hooks/useAuth';
-import type { Expense } from '../../types';
+import type { Engagement, Expense } from '../../types';
 import { EmptyState } from '../ui/bits';
 import { useCopy } from '../../lib/copy';
 
@@ -14,9 +14,11 @@ interface Props {
   onDelete: (expense: Expense) => void;
   onViewReceipt: (expense: Expense) => void;
   onAdd: () => void;
+  engagement?: Record<string, Engagement>;
+  onOpenThread: (expense: Expense) => void;
 }
 
-export function ExpenseList({ expenses, onEdit, onDelete, onViewReceipt, onAdd }: Props) {
+export function ExpenseList({ expenses, onEdit, onDelete, onViewReceipt, onAdd, engagement, onOpenThread }: Props) {
   const user = useCurrentUser();
   const t = useCopy();
   const [query, setQuery] = useState('');
@@ -92,6 +94,19 @@ export function ExpenseList({ expenses, onEdit, onDelete, onViewReceipt, onAdd }
                     {formatDate(e.date)} · paid by {e.payers.map((p) => (p.userId === user.id ? 'you' : p.userName)).join(', ')}
                     {e.originalFormatted && <> · {e.originalFormatted}</>}
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => onOpenThread(e)}
+                    className="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-subtle hover:text-fg"
+                    aria-label={`Reactions and comments for ${e.description}`}
+                  >
+                    {Object.entries(engagement?.[e.id]?.reactions ?? {}).map(([emoji, n]) => (
+                      <span key={emoji} className="rounded-full border border-line bg-surface-2 px-1.5 py-0.5">{emoji} {n}</span>
+                    ))}
+                    <span className="rounded-full border border-dashed border-line px-1.5 py-0.5">
+                      {engagement?.[e.id]?.comments ? `💬 ${engagement[e.id].comments}` : '😀 React / comment'}
+                    </span>
+                  </button>
                 </div>
                 <div className="shrink-0 text-right">
                   <div className="font-mono text-sm font-bold text-fg">{e.costFormatted}</div>

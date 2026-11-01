@@ -35,6 +35,12 @@ public class Group {
     @Column(name = "budget_cents")
     private Long budgetCents;
 
+    @Column(name = "awards_json", columnDefinition = "TEXT")
+    private String awardsJson;
+
+    @Column(name = "awards_revealed_at")
+    private Instant awardsRevealedAt;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -100,6 +106,10 @@ public class Group {
 
     public boolean isSimplifyByDefault() { return simplifyByDefault; }
     public void setSimplifyByDefault(boolean simplifyByDefault) { this.simplifyByDefault = simplifyByDefault; }
+
+    public String getAwardsJson() { return awardsJson; }
+    public Instant getAwardsRevealedAt() { return awardsRevealedAt; }
+    public void setAwards(String json, Instant at) { this.awardsJson = json; this.awardsRevealedAt = at; }
 
     public String getCurrencyCode() { return currencyCode; }
     public void setCurrencyCode(String currencyCode) {

@@ -2,6 +2,9 @@ import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import type {
+  AwardsResponse,
+  Engagement,
+  ExpenseComment,
   AdminGroup,
   AdminHealth,
   AdminOverview,
@@ -189,6 +192,14 @@ export const api = {
   adminUsers: (q: string) => request<AdminUser[]>('GET', `/admin/users?q=${encodeURIComponent(q)}`),
   adminGroups: (q: string) => request<AdminGroup[]>('GET', `/admin/groups?q=${encodeURIComponent(q)}`),
   adminSetActive: (id: string, active: boolean) => request<AdminUser>('PATCH', `/admin/users/${id}/active`, { active }),
+  engagement: (groupId: string) => request<Record<string, Engagement>>('GET', `/groups/${groupId}/engagement`),
+  react: (expenseId: string, emoji: string) => request<Engagement>('PUT', `/expenses/${expenseId}/reactions`, { emoji }),
+  comments: (expenseId: string) => request<ExpenseComment[]>('GET', `/expenses/${expenseId}/comments`),
+  addComment: (expenseId: string, body: string) => request<ExpenseComment>('POST', `/expenses/${expenseId}/comments`, { body }),
+  deleteComment: (commentId: string) => request<{ success: boolean }>('DELETE', `/comments/${commentId}`),
+  awards: (groupId: string) => request<AwardsResponse>('GET', `/groups/${groupId}/awards`),
+  revealAwards: (groupId: string) => request<AwardsResponse>('POST', `/groups/${groupId}/awards/reveal`),
+  hideAwards: (groupId: string) => request<{ success: boolean }>('DELETE', `/groups/${groupId}/awards`),
   paymentSummary: () => request<UserPaymentSummary>('GET', '/balances/me/summary'),
   balances: (groupId: string) => request<GroupBalanceSummary>('GET', `/groups/${groupId}/balances`),
   settlements: (groupId: string) => request<Settlement[]>('GET', `/groups/${groupId}/settlements`),

@@ -258,3 +258,34 @@ export interface AdminGroup {
   createdAt: string;
   memberCount: number;
 }
+
+export interface Engagement {
+  reactions: Record<string, number>;
+  mine: string[];
+  comments: number;
+}
+
+export interface ExpenseComment {
+  id: string;
+  userId: string;
+  userName: string;
+  body: string;
+  createdAt: string;
+  mine: boolean;
+}
+
+export interface Award {
+  id: string;
+  emoji: string;
+  title: string;
+  winners: string[];
+  detail: string;
+}
+
+export interface AwardsResponse {
+  revealed: boolean;
+  eligible: boolean;
+  message: string | null;
+  revealedAt: string | null;
+  awards: Award[];
+}

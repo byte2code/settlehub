@@ -17,6 +17,9 @@ export const keys = {
 export const usePaymentSummary = (enabled = true) =>
   useQuery({ queryKey: keys.paymentSummary, queryFn: api.paymentSummary, enabled });
 
+export const useEngagement = (id: string) =>
+  useQuery({ queryKey: [...keys.group(id), 'engagement'] as const, queryFn: () => api.engagement(id), enabled: Boolean(id) });
+
 export const useGroups = () => useQuery({ queryKey: keys.groups, queryFn: api.groups });
 
 export const useGroup = (id: string) => useQuery({ queryKey: keys.group(id), queryFn: () => api.group(id) });

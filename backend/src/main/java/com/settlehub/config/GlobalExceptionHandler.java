@@ -45,6 +45,11 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.FORBIDDEN, ex.getMessage() != null ? ex.getMessage() : "You are not allowed to do that");
     }
 
+    @ExceptionHandler(com.settlehub.exception.TooManyRequestsException.class)
+    public ResponseEntity<Map<String, Object>> handleTooMany(com.settlehub.exception.TooManyRequestsException ex) {
+        return build(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage());
+    }
+
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<Map<String, Object>> handleConflict(ConflictException ex) {
         return build(HttpStatus.CONFLICT, ex.getMessage());

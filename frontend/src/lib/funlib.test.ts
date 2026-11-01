@@ -88,3 +88,15 @@ describe('who pays tonight', () => {
     expect(secureRandomInt(1)).toBe(0);
   });
 });
+
+import { MAX_COMMENT_CHARS, REACTION_EMOJI, commentLength } from './reactions';
+
+describe('reactions', () => {
+  it('counts characters like the server (emoji are one each)', () => {
+    expect(commentLength('  hi   there ')).toBe(8);
+    expect(commentLength('😭'.repeat(MAX_COMMENT_CHARS))).toBe(MAX_COMMENT_CHARS);
+  });
+  it('offers a small fixed set', () => {
+    expect(REACTION_EMOJI).toHaveLength(8);
+  });
+});
