@@ -53,7 +53,7 @@ export function Drawer({ open, onClose, title, subtitle, children }: DrawerProps
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="relative flex max-h-[88vh] w-full flex-col rounded-t-3xl border border-line bg-surface shadow-2xl outline-none sm:max-h-none sm:w-[26rem] sm:rounded-none sm:rounded-l-3xl"
+        className="relative flex max-h-[88dvh] w-full flex-col rounded-t-3xl border border-line bg-surface shadow-2xl outline-none sm:max-h-none sm:w-[26rem] sm:rounded-none sm:rounded-l-3xl"
       >
         <div className="mx-auto mt-2 h-1.5 w-10 rounded-full bg-surface-3 sm:hidden" aria-hidden />
         <div className="flex items-start gap-3 border-b border-line p-5 pb-4">
@@ -65,7 +65,7 @@ export function Drawer({ open, onClose, title, subtitle, children }: DrawerProps
             <X className="h-5 w-5" />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-5">{children}</div>
+        <div className="flex-1 overflow-y-auto overscroll-contain p-5" style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom, 0px))' }}>{children}</div>
       </div>
     </div>,
     document.body,

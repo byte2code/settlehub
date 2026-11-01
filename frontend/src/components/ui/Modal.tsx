@@ -72,7 +72,7 @@ export function Modal({ open, onClose, title, subtitle, icon, children, footer, 
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className={`relative flex max-h-[92vh] w-full flex-col rounded-t-3xl border border-line bg-surface shadow-2xl outline-none sm:rounded-3xl ${SIZES[size]}`}
+        className={`relative flex max-h-[92dvh] w-full flex-col rounded-t-3xl border border-line bg-surface shadow-2xl outline-none sm:rounded-3xl ${SIZES[size]}`}
       >
         <div className="flex items-start gap-3 border-b border-line p-5 pb-4">
           {icon && (
@@ -90,7 +90,7 @@ export function Modal({ open, onClose, title, subtitle, icon, children, footer, 
             <X className="h-5 w-5" />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-5">{children}</div>
+        <div className="flex-1 overflow-y-auto overscroll-contain p-5" style={footer ? undefined : { paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom, 0px))' }}>{children}</div>
         {footer && <div className="flex items-center justify-end gap-2 border-t border-line p-4">{footer}</div>}
       </div>
     </div>,
