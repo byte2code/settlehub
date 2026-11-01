@@ -22,7 +22,7 @@ jobs:
       SETTLEHUB_TEST2_EMAIL: ci-test2@example.com
       SETTLEHUB_TEST2_PASSWORD: ci-test2-pass-1
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
