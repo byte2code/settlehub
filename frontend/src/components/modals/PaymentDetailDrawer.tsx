@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 import { MessageCircle, Zap } from 'lucide-react';
 import { Drawer } from '../ui/Drawer';
+import { useCopy } from '../../lib/copy';
 import { Avatar, EmptyState, ErrorNote, PageSpinner } from '../ui/bits';
 import { formatMoney } from '../../lib/money';
 import { buildUpiLink } from '../../lib/upi';
@@ -87,6 +88,7 @@ function Totals({ totals, tone }: { totals: Record<string, number>; tone: 'pos' 
 }
 
 export default function PaymentDetailDrawer({ open, onClose, initialTab }: { open: boolean; onClose: () => void; initialTab: PaymentTab }) {
+  const t = useCopy();
   const [tab, setTab] = useState<PaymentTab>(initialTab);
   const { data, isLoading, error } = usePaymentSummary(open);
 
@@ -106,7 +108,7 @@ export default function PaymentDetailDrawer({ open, onClose, initialTab }: { ope
           <Totals totals={tab === 'owe' ? data.totalOweByCurrency : data.totalReceivableByCurrency} tone={tab === 'owe' ? 'neg' : 'pos'} />
           {people.length === 0 ? (
             <EmptyState icon={<Zap className="h-6 w-6" />} title="All clear">
-              {tab === 'owe' ? 'You don’t owe anyone right now.' : 'Nobody owes you right now.'}
+              {tab === 'owe' ? t('drawer.noneOwe') : t('drawer.noneOwed')}
             </EmptyState>
           ) : (
             <ul className="space-y-3">

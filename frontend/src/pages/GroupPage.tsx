@@ -1,7 +1,7 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { Activity, Archive, ArchiveRestore, ArrowLeft, BarChart3, CheckCircle2, History, Plus, Radio, Receipt, Settings, Share2, UserPlus } from 'lucide-react';
+import { Activity, Archive, ArchiveRestore, ArrowLeft, BarChart3, CheckCircle2, Dice5, History, Plus, Radio, Receipt, Settings, Share2, UserPlus } from 'lucide-react';
 import { api } from '../lib/api';
 import { errorMessage } from '../lib/errors';
 import { formatMoney } from '../lib/money';
@@ -26,10 +26,12 @@ const InviteModal = lazy(() => import('../components/modals/InviteModal'));
 const ExportModal = lazy(() => import('../components/modals/ExportModal'));
 const GroupSettingsModal = lazy(() => import('../components/modals/GroupSettingsModal'));
 const ReceiptViewer = lazy(() => import('../components/modals/ReceiptViewer'));
+const WhoPaysModal = lazy(() => import('../components/group/WhoPaysModal'));
 
 type Tab = 'expenses' | 'payments' | 'stats' | 'activity';
 type ModalState =
-  | { kind: 'expense'; expense: Expense | null }
+  | { kind: 'expense'; expense: Expense | null; payerId?: string }
+  | { kind: 'whopays' }
   | { kind: 'settle'; repayment: DebtRepayment | null }
   | { kind: 'invite' }
   | { kind: 'export' }
@@ -49,6 +51,19 @@ export function GroupPage() {
   const [params, setParams] = useSearchParams();
   const tab = (params.get('tab') as Tab) || 'expenses';
   const [modal, setModal] = useState<ModalState>(null);
+  // Deleting is deferred for a few seconds so it can be undone; unmounting flushes any pending deletes.
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  const pendingDeletes = useRef(new Map<string, { timer: ReturnType<typeof setTimeout>; commit: () => Promise<void> }>());
+  useEffect(() => {
+    const pending = pendingDeletes.current;
+    return () => {
+      for (const { timer, commit } of pending.values()) {
+        clearTimeout(timer);
+        void commit();
+      }
+      pending.clear();
+    };
+  }, []);
 
   const groupQuery = useGroup(groupId);
   const expensesQuery = useExpenses(groupId);
@@ -87,7 +102,8 @@ export function GroupPage() {
     );
   }
 
-  const expenses = expensesQuery.data ?? [];
+  const allExpenses = expensesQuery.data ?? [];
+  const expenses = allExpenses.filter((e) => !hiddenIds.has(e.id));
   const settlements = settlementsQuery.data ?? [];
   const simplify = group.simplifyByDefault;
 
@@ -101,10 +117,34 @@ export function GroupPage() {
     }
   };
 
-  const deleteExpense = async (expense: Expense) => {
-    if (await confirm({ title: 'Delete expense?', message: `“${expense.description}” (${expense.costFormatted}) will be removed for everyone.`, confirmLabel: 'Delete', danger: true })) {
-      await run(() => api.deleteExpense(expense.id), 'Expense deleted');
-    }
+  const unhide = (id: string) =>
+    setHiddenIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+
+  const deleteExpense = (expense: Expense) => {
+    const id = expense.id;
+    setHiddenIds((prev) => new Set(prev).add(id));
+    const commit = async () => {
+      pendingDeletes.current.delete(id);
+      try {
+        await api.deleteExpense(id);
+        await invalidate(groupId);
+      } catch (err) {
+        toast.error(errorMessage(err));
+      } finally {
+        unhide(id);
+      }
+    };
+    const timer = setTimeout(() => void commit(), 5000);
+    pendingDeletes.current.set(id, { timer, commit });
+    toast.undoable(`“${expense.description}” deleted`, 'Undo', () => {
+      clearTimeout(timer);
+      pendingDeletes.current.delete(id);
+      unhide(id);
+    });
   };
 
   const undoSettlement = async (s: Settlement) => {
@@ -152,6 +192,9 @@ export function GroupPage() {
           </button>
           <button className="btn-secondary" onClick={() => setModal({ kind: 'settings' })} aria-label="Group settings"><Settings className="h-4 w-4" /><span className="hidden sm:inline">Settings</span></button>
           <button className="btn-secondary col-span-2 sm:col-span-1" onClick={() => setModal({ kind: 'settle', repayment: null })}><CheckCircle2 className="h-4 w-4 text-brand-fg" /> Settle up</button>
+          {!group.archived && group.members.length >= 2 && (
+            <button className="btn-secondary" onClick={() => setModal({ kind: 'whopays' })} aria-label="Who pays tonight?"><Dice5 className="h-4 w-4" /><span className="hidden sm:inline">Who pays?</span></button>
+          )}
           <button className="btn-primary col-span-2 sm:col-span-1" onClick={() => setModal({ kind: 'expense', expense: null })}><Plus className="h-4 w-4" /> Add expense</button>
         </div>
       </header>
@@ -200,7 +243,8 @@ export function GroupPage() {
       </button>
 
       <Suspense fallback={null}>
-        {modal?.kind === 'expense' && <ExpenseFormModal key={modal.expense?.id ?? 'new'} group={group} expense={modal.expense} onClose={() => setModal(null)} />}
+        {modal?.kind === 'expense' && <ExpenseFormModal key={modal.expense?.id ?? `new-${modal.payerId ?? ''}`} group={group} expense={modal.expense} initialPayerId={modal.payerId} onClose={() => setModal(null)} />}
+        {modal?.kind === 'whopays' && <WhoPaysModal group={group} expenses={expenses} onClose={() => setModal(null)} onAddExpense={(payerId) => setModal({ kind: 'expense', expense: null, payerId })} />}
         {modal?.kind === 'settle' && (
           <SettleUpModal key={modal.repayment ? `${modal.repayment.fromUserId}-${modal.repayment.toUserId}` : 'new'} group={group} repayment={modal.repayment} onClose={() => setModal(null)} />
         )}

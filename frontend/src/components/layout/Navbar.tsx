@@ -18,6 +18,8 @@ export function Navbar({ onSignIn }: { onSignIn: () => void }) {
   const [showServer, setShowServer] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const ThemeIcon = THEME_ICON[preference];
+  // Changing the backend is for developers and admins (Admin portal), not everyday users
+  const serverPickerEnabled = import.meta.env.DEV || import.meta.env.VITE_ENABLE_SERVER_CONFIG === 'true';
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-line bg-app/90 backdrop-blur-md">
@@ -42,9 +44,11 @@ export function Navbar({ onSignIn }: { onSignIn: () => void }) {
           >
             <ThemeIcon className="h-4 w-4" />
           </button>
-          <button type="button" className="btn-ghost p-2" onClick={() => setShowServer(true)} title="Server settings" aria-label="Server settings">
-            <Server className="h-4 w-4" />
-          </button>
+          {serverPickerEnabled && (
+            <button type="button" className="btn-ghost p-2" onClick={() => setShowServer(true)} title="Server settings" aria-label="Server settings">
+              <Server className="h-4 w-4" />
+            </button>
+          )}
           {user ? (
             <>
               {user.admin && (

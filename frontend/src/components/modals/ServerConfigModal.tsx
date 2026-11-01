@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Server } from 'lucide-react';
 import { getApiBaseUrl, setApiBaseUrl } from '../../lib/api';
 import { Modal } from '../ui/Modal';
+import { isAllowedServerUrl } from '../../lib/serverUrl';
 
 /** Lets the Android app / self-hosters point the client at any backend without rebuilding. */
 export default function ServerConfigModal({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -21,6 +22,10 @@ export default function ServerConfigModal({ open, onClose }: { open: boolean; on
   };
 
   const save = (value: string | null) => {
+    if (value !== null && !isAllowedServerUrl(value)) {
+      setStatus('Use an https:// address (http:// is only allowed for localhost and the Android emulator).');
+      return;
+    }
     setApiBaseUrl(value);
     window.location.reload();
   };

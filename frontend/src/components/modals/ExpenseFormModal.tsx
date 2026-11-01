@@ -8,6 +8,9 @@ import { convertCents, fetchRate } from '../../lib/fx';
 import { compressImage } from '../../lib/image';
 import { SUPPORTED_CURRENCIES, centsToInput, formatMoney, getCurrency, parseAmountToCents, splitEvenly } from '../../lib/money';
 import { parseQuickEntry } from '../../lib/quickEntry';
+import { evalAmount, isExpression } from '../../lib/calc';
+import { copy } from '../../lib/copy';
+import { haptic } from '../../lib/haptics';
 import { validateSplit } from '../../lib/split';
 import { useInvalidateGroup } from '../../hooks/queries';
 import { useCurrentUser } from '../../hooks/useAuth';
@@ -19,12 +22,14 @@ import { useToast } from '../ui/Toast';
 interface Props {
   group: Group;
   expense?: Expense | null;
+  /** Preselects who paid (e.g. the winner of "Who pays tonight?"). */
+  initialPayerId?: string;
   onClose: () => void;
 }
 
 type ReceiptState = { kind: 'keep' } | { kind: 'none' } | { kind: 'new'; dataUrl: string };
 
-function initialState(group: Group, userId: string, expense?: Expense | null) {
+function initialState(group: Group, userId: string, expense?: Expense | null, initialPayerId?: string) {
   const members = group.members;
   const byId = <T,>(fn: (m: GroupMember) => T) => Object.fromEntries(members.map((m) => [m.userId, fn(m)]));
   if (!expense) {
@@ -36,7 +41,7 @@ function initialState(group: Group, userId: string, expense?: Expense | null) {
       notes: '',
       method: 'EQUAL' as SplitMethod,
       multiPayer: false,
-      payerId: userId,
+      payerId: initialPayerId && group.members.some((m) => m.userId === initialPayerId) ? initialPayerId : userId,
       payerAmounts: byId(() => ''),
       selected: byId(() => true),
       exactAmounts: byId(() => ''),
@@ -65,14 +70,21 @@ function initialState(group: Group, userId: string, expense?: Expense | null) {
   };
 }
 
-export default function ExpenseFormModal({ group, expense, onClose }: Props) {
+/** "500+250" or "1.5k" become their total; anything else is left as typed. */
+function resolveAmount(text: string): string {
+  if (!isExpression(text)) return text;
+  const n = evalAmount(text);
+  return n === null ? text : String(n);
+}
+
+export default function ExpenseFormModal({ group, expense, initialPayerId, onClose }: Props) {
   const user = useCurrentUser();
   const toast = useToast();
   const invalidate = useInvalidateGroup();
   const editing = Boolean(expense);
   const currency = group.currencyCode;
 
-  const [form, setForm] = useState(() => initialState(group, user.id, expense));
+  const [form, setForm] = useState(() => initialState(group, user.id, expense, initialPayerId));
   const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) => setForm((f) => ({ ...f, [key]: value }));
 
   const [quickText, setQuickText] = useState('');
@@ -85,12 +97,12 @@ export default function ExpenseFormModal({ group, expense, onClose }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   const foreign = form.inputCurrency !== currency;
-  const originalCents = parseAmountToCents(form.originalAmount);
+  const originalCents = parseAmountToCents(resolveAmount(form.originalAmount));
   const totalCents = foreign
     ? Number(rate) > 0 && originalCents > 0
       ? convertCents(originalCents, Number(rate))
       : 0
-    : parseAmountToCents(form.amount) || 0;
+    : parseAmountToCents(resolveAmount(form.amount)) || 0;
 
   const validation = useMemo(
     () =>
@@ -156,7 +168,7 @@ export default function ExpenseFormModal({ group, expense, onClose }: Props) {
     const payload: ExpenseInput = {
       description: form.description.trim(),
       costCents: totalCents,
-      date: fromDateInput(form.date),
+      date: fromDateInput(form.date || toDateInput()),
       category: form.category,
       creationMethod: form.method,
       notes: form.notes.trim() || null,
@@ -178,7 +190,8 @@ export default function ExpenseFormModal({ group, expense, onClose }: Props) {
       if (expense) await api.updateExpense(expense.id, payload);
       else await api.createExpense(group.id, payload);
       await invalidate(group.id);
-      toast.success(editing ? 'Expense updated' : 'Expense added');
+      toast.success(editing ? 'Expense updated' : copy('toast.expenseAdded'));
+      void haptic('success');
       onClose();
     } catch (err) {
       setError(errorMessage(err, 'Could not save the expense'));
@@ -263,8 +276,18 @@ export default function ExpenseFormModal({ group, expense, onClose }: Props) {
               required
               value={foreign ? form.originalAmount : form.amount}
               onChange={(e) => set(foreign ? 'originalAmount' : 'amount', e.target.value)}
-              placeholder="0.00"
+              onBlur={() => {
+                const key = foreign ? 'originalAmount' : 'amount';
+                const resolved = resolveAmount(foreign ? form.originalAmount : form.amount);
+                if (resolved !== (foreign ? form.originalAmount : form.amount)) set(key, resolved);
+              }}
+              placeholder="0.00 or 500+250"
             />
+            {(() => {
+              const typed = foreign ? form.originalAmount : form.amount;
+              const total = isExpression(typed) ? evalAmount(typed) : null;
+              return total !== null ? <p className="mt-1 font-mono text-[11px] text-brand-fg">= {total}</p> : null;
+            })()}
           </div>
         </div>
 
@@ -283,12 +306,37 @@ export default function ExpenseFormModal({ group, expense, onClose }: Props) {
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div>
-            <label className="label" htmlFor="date">Date</label>
-            <input id="date" type="date" className="input" value={form.date} onChange={(e) => set('date', e.target.value)} required />
+        <div className="flex items-center gap-3 rounded-2xl border border-line bg-surface-2 p-3">
+          {receipt.kind === 'new' ? (
+            <img src={receipt.dataUrl} alt="Receipt preview" className="h-12 w-12 shrink-0 rounded-lg object-cover" />
+          ) : (
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-surface-3 text-brand-fg"><Camera className="h-5 w-5" /></span>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold text-fg">Receipt photo</p>
+            <p className="truncate text-[11px] text-muted">
+              {receipt.kind === 'new' ? 'Photo added' : receipt.kind === 'keep' ? 'A receipt is attached' : 'Optional: snap the bill so everyone can check it'}
+            </p>
           </div>
-          <div>
+          <label className="btn-secondary shrink-0 cursor-pointer text-xs focus-within:ring-2">
+            {receipt.kind === 'none' ? 'Add photo' : 'Replace'}
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              aria-label="Receipt photo"
+              className="sr-only"
+              onChange={(e) => void onReceiptFile(e.target.files?.[0])}
+            />
+          </label>
+          {receipt.kind !== 'none' && (
+            <button type="button" className="btn-ghost p-2 text-neg" onClick={() => setReceipt({ kind: 'none' })} aria-label="Remove receipt photo">
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
+        <div>
             <span className="label">Category</span>
             <div className="flex flex-wrap gap-1.5">
               {CATEGORIES.map((c) => (
@@ -306,39 +354,23 @@ export default function ExpenseFormModal({ group, expense, onClose }: Props) {
               ))}
             </div>
           </div>
-        </div>
 
         <PayerSection group={group} form={form} set={set} symbol={groupSymbol} />
         <SplitSection group={group} form={form} set={set} totalCents={totalCents} symbol={groupSymbol} />
 
-        <div>
-          <label className="label" htmlFor="notes">Notes (optional)</label>
-          <textarea id="notes" className="input min-h-16" maxLength={500} value={form.notes} onChange={(e) => set('notes', e.target.value)} placeholder="Bill number, who ordered what…" />
-        </div>
-
-        <div className="rounded-2xl border border-line bg-surface-2 p-3">
-          <div className="mb-2 flex items-center justify-between text-xs font-semibold text-fg">
-            <span className="flex items-center gap-1.5"><Camera className="h-3.5 w-3.5 text-brand-fg" /> Receipt photo</span>
-            {receipt.kind !== 'none' && (
-              <button type="button" className="flex items-center gap-1 text-[11px] text-neg" onClick={() => setReceipt({ kind: 'none' })}>
-                <Trash2 className="h-3 w-3" /> Remove
-              </button>
-            )}
+        <details className="group rounded-2xl border border-line bg-surface-2 p-3" open={editing && Boolean(form.notes)}>
+          <summary className="cursor-pointer text-xs font-semibold text-fg">More details <span className="font-normal text-muted">(date, notes)</span></summary>
+          <div className="mt-3 space-y-3">
+            <div>
+              <label className="label" htmlFor="date">Date</label>
+              <input id="date" type="date" className="input" value={form.date} onChange={(e) => set('date', e.target.value)} />
+            </div>
+            <div>
+              <label className="label" htmlFor="notes">Notes (optional)</label>
+              <textarea id="notes" className="input min-h-16" maxLength={500} value={form.notes} onChange={(e) => set('notes', e.target.value)} placeholder="Bill number, who ordered what…" />
+            </div>
           </div>
-          {receipt.kind === 'new' ? (
-            <img src={receipt.dataUrl} alt="Receipt preview" className="mx-auto max-h-40 rounded-xl" />
-          ) : receipt.kind === 'keep' ? (
-            <p className="text-xs text-muted">A receipt is attached. Choose a new photo to replace it.</p>
-          ) : null}
-          <input
-            type="file"
-            accept="image/*"
-            capture="environment"
-            aria-label="Receipt photo"
-            className="mt-2 block w-full text-xs text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-surface-3 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-fg"
-            onChange={(e) => void onReceiptFile(e.target.files?.[0])}
-          />
-        </div>
+        </details>
       </form>
     </Modal>
   );

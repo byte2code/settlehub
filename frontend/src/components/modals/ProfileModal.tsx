@@ -1,15 +1,19 @@
-import { lazy, Suspense, useState, type FormEvent } from 'react';
+import { lazy, Suspense, useEffect, useState, type FormEvent } from 'react';
 import { UserRound } from 'lucide-react';
 import { api } from '../../lib/api';
 import { errorMessage } from '../../lib/errors';
 import { SUPPORTED_CURRENCIES } from '../../lib/money';
 import { AVATARS } from '../../lib/avatars';
 import { CHIMES, playChime } from '../../lib/chime';
+import { setPrefs, usePrefs } from '../../lib/prefs';
+import { haptic } from '../../lib/haptics';
+import { burst } from '../../lib/confetti';
 import { useCurrentUser, useAuth } from '../../hooks/useAuth';
 import { Modal } from '../ui/Modal';
 import { Avatar, ErrorNote, PageSpinner } from '../ui/bits';
 import { useToast } from '../ui/Toast';
 import { useQuery } from '@tanstack/react-query';
+import { storage } from '../../lib/storage';
 
 const UpiQrPanel = lazy(() => import('../profile/UpiQrPanel'));
 const WrappedPanel = lazy(() => import('../profile/WrappedPanel'));
@@ -24,6 +28,19 @@ const TABS: { id: Tab; label: string }[] = [
 
 function BadgesPanel() {
   const { data, isLoading, error } = useQuery({ queryKey: ['badges'], queryFn: api.badges });
+  useEffect(() => {
+    if (!data) return;
+    const earned = data.filter((b) => b.earned).map((b) => b.id);
+    const seenRaw = storage.get('settlehub_badges_seen');
+    storage.set('settlehub_badges_seen', JSON.stringify(earned));
+    // First time ever: just remember, don't celebrate badges that were already there
+    if (seenRaw === null) return;
+    const seen: string[] = JSON.parse(seenRaw);
+    if (earned.some((id) => !seen.includes(id))) {
+      burst('big');
+      void haptic('success');
+    }
+  }, [data]);
   if (isLoading) return <PageSpinner />;
   return (
     <div className="space-y-3">
@@ -47,13 +64,14 @@ export default function ProfileModal({ open, onClose }: { open: boolean; onClose
   const { setUser } = useAuth();
   const toast = useToast();
   const [tab, setTab] = useState<Tab>('profile');
+  const prefs = usePrefs();
   const [firstName, setFirstName] = useState(user.firstName);
   const [lastName, setLastName] = useState(user.lastName ?? '');
   const [currencyCode, setCurrencyCode] = useState(user.currencyCode);
   const [upiId, setUpiId] = useState(user.upiId ?? '');
   const [bio, setBio] = useState(user.bio ?? '');
   const [avatarId, setAvatarId] = useState(user.avatarId ?? '');
-  const [chimeSound, setChimeSound] = useState(user.chimeSound ?? 'cha-ching');
+  const [chimeSound, setChimeSound] = useState(user.chimeSound ?? 'none');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [saving, setSaving] = useState(false);
@@ -141,6 +159,17 @@ export default function ProfileModal({ open, onClose }: { open: boolean; onClose
                 <input id="p-upi" className="input font-mono" placeholder="yourname@okbank" value={upiId} onChange={(e) => setUpiId(e.target.value)} />
                 <p className="mt-1 text-[11px] text-subtle">Group members who owe you get a one-tap “Pay via UPI” button. Visible only to your group members.</p>
               </div>
+              <fieldset className="space-y-2 rounded-2xl border border-line bg-surface-2 p-3">
+                <legend className="px-1 text-xs font-semibold text-fg">On this device</legend>
+                <label className="flex cursor-pointer items-start gap-3 text-sm">
+                  <input type="checkbox" className="mt-1 h-4 w-4" checked={prefs.fun} onChange={(e) => { setPrefs({ fun: e.target.checked }); if (e.target.checked) burst('small'); }} />
+                  <span><span className="font-semibold text-fg">Fun mode</span><span className="block text-[11px] text-muted">Playful wording, confetti and animations. Turn off for a plain, quiet app. Your phone’s “reduce motion” setting always wins.</span></span>
+                </label>
+                <label className="flex cursor-pointer items-start gap-3 text-sm">
+                  <input type="checkbox" className="mt-1 h-4 w-4" checked={prefs.haptics} onChange={(e) => { setPrefs({ haptics: e.target.checked }); if (e.target.checked) void haptic('success'); }} />
+                  <span><span className="font-semibold text-fg">Vibration feedback</span><span className="block text-[11px] text-muted">A light buzz on key moments (Android).</span></span>
+                </label>
+              </fieldset>
               <div>
                 <span className="label">Payment-received sound</span>
                 <div className="grid grid-cols-2 gap-2">

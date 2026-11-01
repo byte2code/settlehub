@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Bell, BellRing, Check, CheckCheck, Clock, FileEdit, HandCoins, Receipt, Trash2, Zap } from 'lucide-react';
 import { Drawer } from '../ui/Drawer';
+import { useCopy } from '../../lib/copy';
 import { disableWebPush, enableWebPush, webPushState } from '../../lib/push';
 import { useMarkAllNotificationsRead, useMarkNotificationRead, useNotificationsQuery } from '../../hooks/queries';
 import type { AppNotification } from '../../types';
@@ -20,6 +21,7 @@ function iconFor(type: string) {
 
 export function ActivityInboxDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate();
+  const t = useCopy();
   const [filter, setFilter] = useState<Filter>('all');
   const { data } = useNotificationsQuery(open);
   const markRead = useMarkNotificationRead();
@@ -87,7 +89,7 @@ export function ActivityInboxDrawer({ open, onClose }: { open: boolean; onClose:
       {grouped.size === 0 ? (
         <div className="flex flex-col items-center py-12 text-center">
           <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-surface-2 text-subtle"><Check className="h-5 w-5" /></div>
-          <p className="text-sm font-medium text-fg">Nothing here</p>
+          <p className="text-sm font-medium text-fg">{t('inbox.none')}</p>
           <p className="mt-1 max-w-xs text-xs text-muted">Alerts about expenses and settlements in your groups appear here.</p>
         </div>
       ) : (

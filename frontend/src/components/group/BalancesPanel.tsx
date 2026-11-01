@@ -2,6 +2,7 @@ import { CheckCircle2, Shuffle } from 'lucide-react';
 import type { DebtRepayment, Group, GroupBalanceSummary } from '../../types';
 import { useCurrentUser } from '../../hooks/useAuth';
 import { Avatar, Balance } from '../ui/bits';
+import { useCopy } from '../../lib/copy';
 
 interface Props {
   group: Group;
@@ -13,6 +14,7 @@ interface Props {
 
 export function BalancesPanel({ group, balances, simplify, onToggleSimplify, onSettle }: Props) {
   const user = useCurrentUser();
+  const t = useCopy();
   const debts = (simplify ? balances?.simplifiedDebts : balances?.originalDebts) ?? [];
   const saved = balances?.savedTransactionsCount ?? 0;
 
@@ -46,7 +48,7 @@ export function BalancesPanel({ group, balances, simplify, onToggleSimplify, onS
       {debts.length === 0 ? (
         <div className="rounded-xl border border-dashed border-line py-6 text-center">
           <CheckCircle2 className="mx-auto mb-1.5 h-7 w-7 text-pos" />
-          <p className="text-xs font-medium text-fg">All settled up</p>
+          <p className="text-xs font-medium text-fg">{t('balances.settled')}</p>
         </div>
       ) : (
         <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">

@@ -32,6 +32,16 @@
 
 ---
 
+## 🆕 Coming next: the "delight" release
+
+- **Fun mode** (profile switch): playful wording, confetti when you settle up or clear a group, and light vibration on Android. Your phone's *reduce motion* setting always wins, and sounds are off until you pick one.
+- **Who pays tonight?**: a fair, just-for-fun spin or coin flip in every group. People who have paid less are a bit likelier to be picked.
+- **Faster expense form**: receipt photo right under the amount, category up front, date and notes tucked under *More details*, and a mini calculator in the amount field (`500+250`, `1.5k`).
+- **Undo delete**: removing an expense can be undone for a few seconds.
+- The server picker is no longer shown to everyday users; admins find it in the Admin portal, and dev builds can enable it with `VITE_ENABLE_SERVER_CONFIG=true`.
+
+---
+
 ## 🆕 What's new in 3.1
 
 - **Payment summary**: tap *You owe* / *You are owed* on the dashboard for a per-person breakdown across all groups, with one-tap **Pay via UPI** and a ready-made **WhatsApp reminder**. Currencies are never mixed.
@@ -137,7 +147,7 @@ flowchart TD
 | Frontend | React 19, TypeScript, Vite, Tailwind CSS v4, React Router, TanStack Query |
 | PWA | `vite-plugin-pwa` (Workbox): precached app shell, API never cached, update prompt |
 | Mobile | Capacitor 8 (Android) |
-| Tests | JUnit + MockMvc (56 backend tests on H2), Vitest (28 frontend tests), both in CI; `scripts/local-smoke.sh` for end-to-end checks against a local backend |
+| Tests | JUnit + MockMvc (56 backend tests on H2), Vitest (42 frontend tests), both in CI; `scripts/local-smoke.sh` for end-to-end checks against a local backend |
 
 ### Project layout
 
@@ -243,7 +253,7 @@ This finishes in at most $N-1$ payments.
 ## 📱 Mobile apps
 
 ### Android
-Download **[SettleHub.apk](https://github.com/byte2code/settlehub/releases/latest/download/SettleHub.apk)** from the [latest release](https://github.com/byte2code/settlehub/releases/latest), open it and tap **Install** (allow *Install unknown apps* if asked). The APK is built by GitHub Actions for every `v*` tag and already points at the hosted backend; the **Server** icon in the app lets you point it elsewhere.
+Download **[SettleHub.apk](https://github.com/byte2code/settlehub/releases/latest/download/SettleHub.apk)** from the [latest release](https://github.com/byte2code/settlehub/releases/latest), open it and tap **Install** (allow *Install unknown apps* if asked). The APK is built by GitHub Actions for every `v*` tag and already points at the hosted backend; admins can point it elsewhere from the Admin portal (**Server connection**), or build with `VITE_ENABLE_SERVER_CONFIG=true`.
 
 > Coming from the 2.0 APK? It was signed with a different key, so uninstall 2.0 first.
 

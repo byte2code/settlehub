@@ -1,3 +1,4 @@
+import { useCopy } from '../../lib/copy';
 import { PieChart, TrendingUp } from 'lucide-react';
 import { CATEGORIES } from '../../lib/categories';
 import { formatMoney } from '../../lib/money';
@@ -19,6 +20,7 @@ function Bar({ label, value, total, currency, color }: { label: string; value: n
 }
 
 export function StatsPanel({ group, expenses }: { group: Group; expenses: Expense[] }) {
+  const t = useCopy();
   const total = group.totalSpendCents;
   const byCategory: Record<string, number> = {};
   const paidBy: Record<string, number> = {};
@@ -39,7 +41,7 @@ export function StatsPanel({ group, expenses }: { group: Group; expenses: Expens
         {CATEGORIES.filter((c) => byCategory[c.code]).map((c) => (
           <Bar key={c.code} label={`${c.icon} ${c.label}`} value={byCategory[c.code]} total={total} currency={group.currencyCode} color={c.bar} />
         ))}
-        {total === 0 && <p className="text-xs text-muted">Nothing spent yet.</p>}
+        {total === 0 && <p className="text-xs text-muted">{t('stats.none')}</p>}
       </section>
 
       <section className="card space-y-3 p-4">

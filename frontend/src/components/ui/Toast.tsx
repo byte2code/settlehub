@@ -6,12 +6,15 @@ interface ToastItem {
   id: number;
   tone: Tone;
   message: string;
+  action?: { label: string; onClick: () => void };
 }
 
 interface ToastApi {
   success: (message: string) => void;
   error: (message: string) => void;
   info: (message: string) => void;
+  /** Success toast with an action button (e.g. Undo) that stays for `ms`. */
+  undoable: (message: string, label: string, onClick: () => void, ms?: number) => void;
 }
 
 const ToastContext = createContext<ToastApi | null>(null);
@@ -29,10 +32,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const dismiss = useCallback((id: number) => setItems((all) => all.filter((t) => t.id !== id)), []);
   const push = useCallback(
-    (tone: Tone, message: string) => {
+    (tone: Tone, message: string, action?: ToastItem['action'], ms?: number) => {
       const id = nextId++;
-      setItems((all) => [...all.slice(-3), { id, tone, message }]);
-      setTimeout(() => dismiss(id), tone === 'error' ? 6000 : 3500);
+      setItems((all) => [...all.slice(-3), { id, tone, message, action }]);
+      setTimeout(() => dismiss(id), ms ?? (tone === 'error' ? 6000 : 3500));
     },
     [dismiss],
   );
@@ -42,6 +45,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       success: (m) => push('success', m),
       error: (m) => push('error', m),
       info: (m) => push('info', m),
+      undoable: (m, label, onClick, ms = 5000) =>
+        push('success', m, { label, onClick: () => { onClick(); }, }, ms),
     }),
     [push],
   );
@@ -64,6 +69,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             >
               <Icon className="mt-0.5 h-4 w-4 shrink-0" />
               <span className="flex-1 text-fg">{t.message}</span>
+              {t.action && (
+                <button
+                  onClick={() => { t.action!.onClick(); dismiss(t.id); }}
+                  className="rounded-lg px-2 py-0.5 text-xs font-bold text-brand-fg hover:bg-surface-3"
+                >
+                  {t.action.label}
+                </button>
+              )}
               <button onClick={() => dismiss(t.id)} className="text-subtle hover:text-fg" aria-label="Dismiss">
                 <X className="h-4 w-4" />
               </button>

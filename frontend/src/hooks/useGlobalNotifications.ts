@@ -105,7 +105,7 @@ export function useGlobalNotifications(user: User | null) {
             }
 
             if (notif.type === 'SETTLEMENT_RECORDED' && notif.title.includes('Payment Received')) {
-              playChime(user.chimeSound ?? 'cha-ching');
+              playChime(user.chimeSound ?? 'none');
             }
 
             // In-app floating toast banner

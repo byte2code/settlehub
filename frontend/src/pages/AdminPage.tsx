@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Activity, Database, Gauge, Mail, Search, ShieldCheck, Users } from 'lucide-react';
+import { Activity, Database, Gauge, Mail, Search, Server, ShieldCheck, Users } from 'lucide-react';
 import { api, getApiBaseUrl } from '../lib/api';
 import { errorMessage } from '../lib/errors';
 import { formatBytes, formatMoney } from '../lib/money';
@@ -9,6 +9,8 @@ import { useCurrentUser } from '../hooks/useAuth';
 import { ErrorNote, PageSpinner } from '../components/ui/bits';
 import { useConfirm } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
+
+const ServerConfigModal = lazy(() => import('../components/modals/ServerConfigModal'));
 
 const PULSE_LABEL: Record<string, string> = { EXPENSE: '💸 An expense was added', SETTLEMENT: '🤝 A payment was recorded', JOIN: '👋 Someone joined a group' };
 
@@ -130,6 +132,7 @@ export function AdminPage() {
   const health = useQuery({ queryKey: ['admin', 'health'], queryFn: api.adminHealth, refetchInterval: 60_000 });
   const { events, live } = useAdminPulse();
   const ping = usePing();
+  const [showServer, setShowServer] = useState(false);
 
   if (overview.isLoading) return <PageSpinner />;
   const o = overview.data;
@@ -138,7 +141,11 @@ export function AdminPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-8 animate-fade-in">
-      <h1 className="flex items-center gap-2 text-2xl font-extrabold text-fg"><ShieldCheck className="h-6 w-6 text-brand-fg" /> Admin portal</h1>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="flex items-center gap-2 text-2xl font-extrabold text-fg"><ShieldCheck className="h-6 w-6 text-brand-fg" /> Admin portal</h1>
+        <button type="button" className="btn-secondary text-xs" onClick={() => setShowServer(true)}><Server className="h-3.5 w-3.5" /> Server connection</button>
+      </div>
+      <Suspense fallback={null}>{showServer && <ServerConfigModal open onClose={() => setShowServer(false)} />}</Suspense>
       <ErrorNote message={overview.error ? errorMessage(overview.error) : null} />
 
       {o && (

@@ -10,6 +10,9 @@ import type { DebtRepayment, Group } from '../../types';
 import { Modal } from '../ui/Modal';
 import { ErrorNote } from '../ui/bits';
 import { useToast } from '../ui/Toast';
+import { copy } from '../../lib/copy';
+import { burst, isDebtFree } from '../../lib/confetti';
+import { haptic } from '../../lib/haptics';
 
 interface Props {
   group: Group;
@@ -44,9 +47,15 @@ export default function SettleUpModal({ group, repayment, onClose }: Props) {
     setSaving(true);
     setError(null);
     try {
+      const before = await api.balances(group.id).catch(() => null);
       await api.recordSettlement({ groupId: group.id, payerId, payeeId, amountCents: cents, note: note.trim() || undefined });
       await invalidate(group.id);
-      toast.success(`Recorded ${formatMoney(cents, group.currencyCode)} payment`);
+      toast.success(copy('toast.settled', { amount: formatMoney(cents, group.currencyCode) }));
+      void haptic('success');
+      // Big celebration only when this payment took the whole group to zero
+      const after = await api.balances(group.id).catch(() => null);
+      const hadDebt = before ? Object.values(before.netBalances).some((v) => v !== 0) : false;
+      burst(after && isDebtFree(after.netBalances, hadDebt) ? 'big' : 'small');
       onClose();
     } catch (err) {
       setError(errorMessage(err, 'Could not record the payment'));

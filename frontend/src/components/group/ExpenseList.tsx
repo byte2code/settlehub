@@ -5,6 +5,7 @@ import { formatDate } from '../../lib/dates';
 import { useCurrentUser } from '../../hooks/useAuth';
 import type { Expense } from '../../types';
 import { EmptyState } from '../ui/bits';
+import { useCopy } from '../../lib/copy';
 
 interface Props {
   expenses: Expense[];
@@ -17,6 +18,7 @@ interface Props {
 
 export function ExpenseList({ expenses, onEdit, onDelete, onViewReceipt, onAdd }: Props) {
   const user = useCurrentUser();
+  const t = useCopy();
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('ALL');
 
@@ -40,8 +42,8 @@ export function ExpenseList({ expenses, onEdit, onDelete, onViewReceipt, onAdd }
 
   if (expenses.length === 0) {
     return (
-      <EmptyState icon={<CreditCard className="h-6 w-6" />} title="No expenses yet" action={<button className="btn-primary" onClick={onAdd}>Add the first expense</button>}>
-        Add what you spent and SettleHub works out who owes whom.
+      <EmptyState icon={<CreditCard className="h-6 w-6" />} title={t('expenses.none')} action={<button className="btn-primary" onClick={onAdd}>Add the first expense</button>}>
+        {t('expenses.noneBody')}
       </EmptyState>
     );
   }

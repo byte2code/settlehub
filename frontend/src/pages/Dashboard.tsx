@@ -6,6 +6,7 @@ import { errorMessage } from '../lib/errors';
 import { formatMoney, sumByCurrency } from '../lib/money';
 import { useGroups } from '../hooks/queries';
 import { useCurrentUser } from '../hooks/useAuth';
+import { useCopy } from '../lib/copy';
 import type { Group } from '../types';
 import { Avatar, Balance, EmptyState, ErrorNote, PageSpinner } from '../components/ui/bits';
 import { GroupTypeIcon } from '../components/ui/GroupTypeIcon';
@@ -30,6 +31,7 @@ function Totals({ totals, tone }: { totals: Record<string, number>; tone: 'pos' 
 
 export function Dashboard() {
   const user = useCurrentUser();
+  const t = useCopy();
   const { data: groups = [], isLoading, error, refetch, isFetching } = useGroups();
   const [tab, setTab] = useState<'active' | 'archived'>('active');
   const [modal, setModal] = useState<'create' | 'join' | null>(null);
@@ -53,7 +55,7 @@ export function Dashboard() {
         <div className="relative z-10 space-y-1">
           <h1 className="text-2xl font-extrabold tracking-tight text-fg sm:text-3xl">Hi, {user.firstName} 👋</h1>
           <p className="text-sm text-muted">
-            {Object.keys(owed).length || Object.keys(owe).length ? 'Here’s where you stand across your active groups.' : 'You’re all settled up.'}
+            {Object.keys(owed).length || Object.keys(owe).length ? 'Here’s where you stand across your active groups.' : t('dash.settled')}
           </p>
         </div>
         <div className="relative z-10 grid grid-cols-2 gap-3 md:min-w-80">
@@ -95,10 +97,10 @@ export function Dashboard() {
         ) : visible.length === 0 ? (
           <EmptyState
             icon={tab === 'active' ? <Users className="h-6 w-6" /> : <Archive className="h-6 w-6" />}
-            title={tab === 'active' ? 'No groups yet' : 'Nothing archived'}
+            title={tab === 'active' ? t('dash.noGroups') : t('dash.nothingArchived')}
             action={tab === 'active' ? <button className="btn-primary" onClick={() => setModal('create')}>Create your first group</button> : undefined}
           >
-            {tab === 'active' ? 'Create a group for a trip, your flat or a night out — or join one with a code.' : 'Finished trips you archive end up here.'}
+            {tab === 'active' ? t('dash.noGroupsBody') : 'Finished trips you archive end up here.'}
           </EmptyState>
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
