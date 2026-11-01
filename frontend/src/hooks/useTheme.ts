@@ -6,17 +6,17 @@ const KEY = 'settlehub_theme';
 
 function resolve(pref: ThemePreference): 'dark' | 'light' {
   if (pref !== 'system') return pref;
-  return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
 export function applyStoredTheme() {
-  const pref = (storage.get(KEY) as ThemePreference) || 'system';
+  const pref = (storage.get(KEY) as ThemePreference) || 'light';
   document.documentElement.dataset.theme = resolve(pref);
 }
 
 export function useTheme() {
   const [preference, setPreference] = useState<ThemePreference>(
-    () => (storage.get(KEY) as ThemePreference) || 'system',
+    () => (storage.get(KEY) as ThemePreference) || 'light',
   );
 
   useEffect(() => {

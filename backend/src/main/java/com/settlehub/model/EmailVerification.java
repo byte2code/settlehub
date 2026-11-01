@@ -32,6 +32,10 @@ public class EmailVerification {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now();
 
+    @Version
+    @Column(nullable = false)
+    private Long version = 0L;
+
     public EmailVerification() {}
 
     public EmailVerification(String email, String otpHash, Instant expiresAt) {
@@ -93,6 +97,14 @@ public class EmailVerification {
 
     public boolean isExpired() {
         return Instant.now().isAfter(expiresAt);
+    }
+
+    public Long getVersion() {
+        return version;
+    }
+
+    public void setVersion(Long version) {
+        this.version = version;
     }
 }
 

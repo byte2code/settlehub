@@ -49,11 +49,11 @@ public class EmailVerificationService {
             EmailVerificationRepository verificationRepository,
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
-            @Value("${app.auth.require-email-verification:false}") boolean requireEmailVerification,
-            @Value("${app.auth.test-domains:test.com,example.com,settlehub.com}") String testDomainsStr,
+            @Value("${app.auth.require-email-verification:true}") boolean requireEmailVerification,
+            @Value("${app.auth.test-domains:}") String testDomainsStr,
             @Value("${app.auth.master-otp:000000}") String masterOtp,
             @Value("${app.auth.otp-expiry-minutes:10}") int otpExpiryMinutes,
-            @Value("${app.auth.verification-bypass-emails:admin@settlehub.com}") String bypassEmailsStr,
+            @Value("${app.auth.verification-bypass-emails:admin@settlehub.com,test1@settlehub.com,test2@settlehub.com,test3@settlehub.com}") String bypassEmailsStr,
             @Value("${app.mail.brevo-api-key:}") String brevoApiKey,
             @Value("${app.mail.brevo-sender-email:}") String brevoSenderEmail,
             @Value("${spring.mail.username:}") String springMailUsername) {
@@ -125,6 +125,10 @@ public class EmailVerificationService {
             }
         });
 
+        // Clean up any older pending codes for this email and purge expired records to keep table lean
+        verificationRepository.deleteByEmail(email);
+        verificationRepository.deleteExpired(Instant.now());
+
         // Generate cryptographically secure 6-digit code
         int codeInt = 100000 + SECURE_RANDOM.nextInt(900000);
         String code = String.valueOf(codeInt);
@@ -139,7 +143,7 @@ public class EmailVerificationService {
         boolean sent = sendBrevoEmail(email, "Your SettleHub Verification Code: " + code, buildOtpEmailHtml(code));
         if (!sent) {
             if (brevoApiKey.isBlank()) {
-                log.warn("BREVO_API_KEY is not configured. Master OTP '{}' can be used for '{}'.", masterOtp, email);
+                log.warn("BREVO_API_KEY is not configured. Master OTP '{}' can be used in dev for '{}'.", masterOtp, email);
                 return new SendOtpResponse(true, false, "Email service not configured. Use development master code.", otpExpiryMinutes * 60);
             }
             throw new BadRequestException("Could not send verification email. Please check your email address and try again.");
@@ -157,10 +161,6 @@ public class EmailVerificationService {
         String trimmedCode = code.trim();
 
         if (isBypassed(email)) return true;
-        if (trimmedCode.equals(masterOtp)) {
-            log.info("Master OTP used for '{}'", email);
-            return true;
-        }
 
         EmailVerification verification = verificationRepository.findTopByEmailOrderByCreatedAtDesc(email)
                 .orElseThrow(() -> new BadRequestException("No verification request found for this email. Please request a new code."));
@@ -173,7 +173,8 @@ public class EmailVerificationService {
             throw new BadRequestException("Too many incorrect attempts. Please request a new code.");
         }
 
-        if (!passwordEncoder.matches(trimmedCode, verification.getOtpHash())) {
+        boolean isDevMaster = brevoApiKey.isBlank() && masterOtp != null && trimmedCode.equals(masterOtp);
+        if (!isDevMaster && !passwordEncoder.matches(trimmedCode, verification.getOtpHash())) {
             verification.incrementAttempts();
             verificationRepository.save(verification);
             int remaining = Math.max(0, 5 - verification.getAttempts());
@@ -194,11 +195,6 @@ public class EmailVerificationService {
         String email = rawEmail.trim().toLowerCase(Locale.ROOT);
 
         if (isBypassed(email)) return;
-        if (otp != null && otp.trim().equals(masterOtp)) {
-            log.info("Master OTP accepted for registration of '{}'", email);
-            verificationRepository.deleteByEmail(email);
-            return;
-        }
 
         if (otp == null || otp.isBlank()) {
             throw new BadRequestException("Email verification code is required.");
@@ -215,7 +211,8 @@ public class EmailVerificationService {
             throw new BadRequestException("Too many failed attempts. Please request a new code.");
         }
 
-        if (!verification.isVerified()) {
+        boolean isDevMaster = brevoApiKey.isBlank() && masterOtp != null && otp.trim().equals(masterOtp);
+        if (!verification.isVerified() && !isDevMaster) {
             if (!passwordEncoder.matches(otp.trim(), verification.getOtpHash())) {
                 verification.incrementAttempts();
                 verificationRepository.save(verification);
@@ -254,6 +251,10 @@ public class EmailVerificationService {
             }
         });
 
+        // Clean up older pending codes for this email and purge expired records to keep table lean
+        verificationRepository.deleteByEmail(email);
+        verificationRepository.deleteExpired(Instant.now());
+
         int codeInt = 100000 + SECURE_RANDOM.nextInt(900000);
         String code = String.valueOf(codeInt);
 
@@ -265,7 +266,7 @@ public class EmailVerificationService {
         boolean sent = sendBrevoEmail(email, "Your SettleHub Password Reset Code: " + code, buildPasswordResetEmailHtml(code));
         if (!sent) {
             if (brevoApiKey.isBlank()) {
-                log.warn("BREVO_API_KEY is not configured. Master OTP '{}' can be used for password reset on '{}'.", masterOtp, email);
+                log.warn("BREVO_API_KEY is not configured. Master OTP '{}' can be used in dev for password reset on '{}'.", masterOtp, email);
                 return new SendOtpResponse(true, false, "Email service not configured. Use development master code.", otpExpiryMinutes * 60);
             }
             throw new BadRequestException("Could not send password reset email. Please try again later.");
@@ -282,11 +283,6 @@ public class EmailVerificationService {
         String email = rawEmail.trim().toLowerCase(Locale.ROOT);
 
         if (isBypassed(email)) return;
-        if (otp != null && otp.trim().equals(masterOtp)) {
-            log.info("Master OTP accepted for password reset of '{}'", email);
-            verificationRepository.deleteByEmail(email);
-            return;
-        }
 
         if (otp == null || otp.isBlank()) {
             throw new BadRequestException("Verification code is required.");
@@ -303,7 +299,8 @@ public class EmailVerificationService {
             throw new BadRequestException("Too many failed attempts. Please request a new code.");
         }
 
-        if (!passwordEncoder.matches(otp.trim(), verification.getOtpHash())) {
+        boolean isDevMaster = brevoApiKey.isBlank() && masterOtp != null && otp.trim().equals(masterOtp);
+        if (!isDevMaster && !passwordEncoder.matches(otp.trim(), verification.getOtpHash())) {
             verification.incrementAttempts();
             verificationRepository.save(verification);
             int remaining = Math.max(0, 5 - verification.getAttempts());

@@ -372,6 +372,18 @@ export default function AuthModal({ open, onClose, context, initialMode = 'login
                     : 'Resend code'}
                 </button>
               </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('login');
+                  setForgotStep('email');
+                  setError(null);
+                }}
+                className="btn-ghost w-full py-1.5 text-xs text-muted hover:text-fg transition-colors text-center"
+              >
+                Cancel and back to sign in
+              </button>
             </form>
           )
         ) : regStep === 'details' ? (

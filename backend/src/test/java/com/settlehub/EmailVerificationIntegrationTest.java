@@ -48,18 +48,35 @@ class EmailVerificationIntegrationTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("Verify OTP accepts master universal code 000000")
-    void verifyOtpMasterCode() throws Exception {
+    @DisplayName("Verify OTP accepts code for whitelisted accounts and strictly rejects non-whitelisted accounts without record")
+    void verifyOtpWhitelistedVsNonWhitelisted() throws Exception {
+        // Whitelisted account succeeds
         perform(post("/api/v1/auth/verify-otp"), null, Map.of(
-                "email", "newuser@mycompany.org",
+                "email", "test1@settlehub.com",
                 "code", "000000"
         ))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
+
+        // Non-whitelisted email without verification record is rejected
+        perform(post("/api/v1/auth/verify-otp"), null, Map.of(
+                "email", "nonwhitelisted@realcompany.com",
+                "code", "000000"
+        ))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("No verification request found for this email. Please request a new code."));
     }
 
     @Test
-    @DisplayName("Forgot password and reset password flow with master OTP")
+    @DisplayName("Forgot password rejects unknown email with 404 Not Found")
+    void forgotPasswordUnknownEmail() throws Exception {
+        perform(post("/api/v1/auth/forgot-password"), null, Map.of("email", "doesnotexist@nowhere.com"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("No account found with this email address. Please sign up."));
+    }
+
+    @Test
+    @DisplayName("Forgot password and reset password flow for bypassed test account")
     void forgotAndResetPasswordFlow() throws Exception {
         TestUser user = register("ResetUser");
 
@@ -68,10 +85,10 @@ class EmailVerificationIntegrationTest extends ApiTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
 
-        // 2. Reset password using master OTP 000000
+        // 2. Reset password for test domain user succeeds
         JsonNode resetRes = json(perform(post("/api/v1/auth/reset-password"), null, Map.of(
                 "email", user.email(),
-                "otp", "000000",
+                "otp", "123456",
                 "newPassword", "newPassword456"
         ))
                 .andExpect(status().isOk())
