@@ -10,7 +10,11 @@ public record UserDto(
     String lastName,
     String fullName,
     String currencyCode,
-    String upiId
+    String upiId,
+    String bio,
+    String avatarId,
+    String chimeSound,
+    boolean admin
 ) {
     public static UserDto fromEntity(User user) {
         if (user == null) return null;
@@ -21,7 +25,11 @@ public record UserDto(
             user.getLastName(),
             user.getFullName(),
             user.getCurrencyCode(),
-            user.getUpiId()
+            user.getUpiId(),
+            user.getBio(),
+            user.getAvatarId(),
+            user.getChimeSound(),
+            user.isAdmin()
         );
     }
 }

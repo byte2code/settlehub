@@ -36,6 +36,23 @@ public class User {
     @Column(name = "upi_id", length = 100)
     private String upiId;
 
+    @Column(length = 120)
+    private String bio;
+
+    @Column(name = "avatar_id", length = 32)
+    private String avatarId;
+
+    @Column(name = "chime_sound", length = 32)
+    private String chimeSound;
+
+    /** Derived from APP_ADMIN_EMAILS at sign-in; never set from request data. */
+    @Column(name = "is_admin", nullable = false)
+    private boolean admin = false;
+
+    /** Admins can deactivate an account; inactive users cannot sign in or use existing tokens. */
+    @Column(nullable = false)
+    private boolean active = true;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -89,6 +106,21 @@ public class User {
 
     public String getUpiId() { return upiId; }
     public void setUpiId(String upiId) { this.upiId = upiId; }
+
+    public String getBio() { return bio; }
+    public void setBio(String bio) { this.bio = bio; }
+
+    public String getAvatarId() { return avatarId; }
+    public void setAvatarId(String avatarId) { this.avatarId = avatarId; }
+
+    public String getChimeSound() { return chimeSound; }
+    public void setChimeSound(String chimeSound) { this.chimeSound = chimeSound; }
+
+    public boolean isAdmin() { return admin; }
+    public void setAdmin(boolean admin) { this.admin = admin; }
+
+    public boolean isActive() { return active; }
+    public void setActive(boolean active) { this.active = active; }
 
     public static User placeholder(String email, String currencyCode) {
         User user = new User(email, "", email.split("@")[0], "", currencyCode);

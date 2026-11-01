@@ -22,7 +22,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "app.rate-limit.auth-requests-per-minute=10000",
     "app.auth.test-domains=example.com",
     "app.auth.verification-bypass-emails=admin@settlehub.com,test1@settlehub.com,test2@settlehub.com,test3@settlehub.com",
-    "app.auth.master-otp=000000"
+    "app.auth.master-otp=000000",
+    "app.admin.emails=root-admin@example.com"
 })
 @AutoConfigureMockMvc
 abstract class ApiTestSupport {

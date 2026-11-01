@@ -34,6 +34,13 @@ public class NotificationController {
         return Map.of("success", true);
     }
 
+    @PostMapping("/groups/{groupId}/read")
+    public Map<String, Integer> markGroupRead(
+            @PathVariable("groupId") UUID groupId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return Map.of("marked", notificationService.markGroupAsRead(groupId, principal.getId()));
+    }
+
     @PostMapping("/read-all")
     public Map<String, Boolean> markAllRead(@AuthenticationPrincipal UserPrincipal principal) {
         notificationService.markAllAsRead(principal.getId());

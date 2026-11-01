@@ -29,13 +29,15 @@ public class UserPrincipal implements UserDetails {
     }
 
     public static UserPrincipal create(User user) {
-        List<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_USER"));
+        List<GrantedAuthority> authorities = user.isAdmin()
+            ? List.of(new SimpleGrantedAuthority("ROLE_USER"), new SimpleGrantedAuthority("ROLE_ADMIN"))
+            : List.of(new SimpleGrantedAuthority("ROLE_USER"));
         return new UserPrincipal(
             user.getId(),
             user.getEmail(),
             user.getPassword(),
             user.getFullName(),
-            !user.isPlaceholder(),
+            !user.isPlaceholder() && user.isActive(),
             authorities
         );
     }

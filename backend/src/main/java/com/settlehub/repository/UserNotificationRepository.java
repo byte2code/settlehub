@@ -31,5 +31,8 @@ public interface UserNotificationRepository extends JpaRepository<UserNotificati
     @Modifying
     @Query("UPDATE UserNotification n SET n.read = true WHERE n.userId = :userId AND n.read = false")
     int markAllReadByUserId(@Param("userId") UUID userId);
-}
 
+    @Modifying
+    @Query("UPDATE UserNotification n SET n.read = true WHERE n.userId = :userId AND n.groupId = :groupId AND n.read = false")
+    int markGroupReadByUserId(@Param("userId") UUID userId, @Param("groupId") UUID groupId);
+}

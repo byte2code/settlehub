@@ -3,9 +3,13 @@ package com.settlehub.service;
 import com.settlehub.dto.DebtRepaymentDto;
 import com.settlehub.dto.GroupBalanceSummaryDto;
 import com.settlehub.dto.GroupDto;
+import com.settlehub.dto.UserPaymentSummaryDto;
+import com.settlehub.dto.UserPaymentSummaryDto.GroupDebtDetailDto;
+import com.settlehub.dto.UserPaymentSummaryDto.PersonPaymentDto;
 import com.settlehub.engine.DebtSimplificationService;
 import com.settlehub.model.*;
 import com.settlehub.repository.ExpenseRepository;
+import com.settlehub.repository.GroupRepository;
 import com.settlehub.repository.GroupMemberRepository;
 import com.settlehub.repository.SettlementRepository;
 import com.settlehub.util.CurrencyUtil;
@@ -29,17 +33,20 @@ public class BalanceService {
     private final SettlementRepository settlementRepository;
     private final DebtSimplificationService debtSimplificationService;
     private final GroupAccessService groupAccessService;
+    private final GroupRepository groupRepository;
 
     public BalanceService(GroupMemberRepository groupMemberRepository,
                           ExpenseRepository expenseRepository,
                           SettlementRepository settlementRepository,
                           DebtSimplificationService debtSimplificationService,
-                          GroupAccessService groupAccessService) {
+                          GroupAccessService groupAccessService,
+                          GroupRepository groupRepository) {
         this.groupMemberRepository = groupMemberRepository;
         this.expenseRepository = expenseRepository;
         this.settlementRepository = settlementRepository;
         this.debtSimplificationService = debtSimplificationService;
         this.groupAccessService = groupAccessService;
+        this.groupRepository = groupRepository;
     }
 
     /** groupId -> (userId -> net balance cents). Members of the groups appear even with a zero balance. */
@@ -139,6 +146,78 @@ public class BalanceService {
             netBalances,
             formattedNet
         );
+    }
+
+    /**
+     * Who the user owes / is owed across all their active groups, using each group's simplified debts.
+     * A person who owes the user in one group and is owed by them in another appears in both lists
+     * (debts are not netted across groups, as each group settles independently).
+     */
+    @Transactional(readOnly = true)
+    public UserPaymentSummaryDto getUserPaymentSummary(UUID userId) {
+        List<Group> groups = groupRepository.findAllForUser(userId).stream().filter(g -> !g.isArchived()).toList();
+        if (groups.isEmpty()) {
+            return new UserPaymentSummaryDto(Map.of(), Map.of(), List.of(), List.of());
+        }
+        List<UUID> groupIds = groups.stream().map(Group::getId).toList();
+        List<GroupMember> members = groupMemberRepository.findAllByGroupIdIn(groupIds);
+        Map<UUID, User> users = new HashMap<>();
+        for (GroupMember m : members) users.put(m.getUser().getId(), m.getUser());
+        Map<UUID, Map<UUID, Long>> nets = netBalancesForGroups(groupIds, members);
+
+        // key: otherUserId|currency
+        Map<String, PersonAcc> owe = new LinkedHashMap<>();
+        Map<String, PersonAcc> owed = new LinkedHashMap<>();
+        Map<String, Long> totalOwe = new TreeMap<>();
+        Map<String, Long> totalOwed = new TreeMap<>();
+
+        for (Group group : groups) {
+            String currency = GroupDto.currencyOf(group);
+            Map<UUID, Long> net = nets.getOrDefault(group.getId(), Map.of());
+            for (DebtSimplificationService.DebtRepayment d : debtSimplificationService.simplifyNetBalances(net, currency)) {
+                if (d.amountCents() <= 0) continue;
+                boolean iPay = d.fromUserId().equals(userId);
+                boolean iReceive = d.toUserId().equals(userId);
+                if (!iPay && !iReceive) continue;
+                UUID other = iPay ? d.toUserId() : d.fromUserId();
+                (iPay ? owe : owed)
+                    .computeIfAbsent(other + "|" + currency, k -> new PersonAcc(other, currency))
+                    .add(group, d.amountCents());
+                (iPay ? totalOwe : totalOwed).merge(currency, d.amountCents(), Long::sum);
+            }
+        }
+        return new UserPaymentSummaryDto(totalOwe, totalOwed,
+            toPeople(owe, users, true), toPeople(owed, users, false));
+    }
+
+    private static List<PersonPaymentDto> toPeople(Map<String, PersonAcc> accs, Map<UUID, User> users, boolean includeUpi) {
+        return accs.values().stream()
+            .map(a -> {
+                User u = users.get(a.userId);
+                return new PersonPaymentDto(
+                    a.userId,
+                    u != null ? u.getFullName() : "Former member",
+                    includeUpi && u != null ? u.getUpiId() : null,
+                    a.currency,
+                    a.total,
+                    a.groups.stream().sorted(Comparator.comparing(GroupDebtDetailDto::amountCents).reversed()).toList());
+            })
+            .sorted(Comparator.comparing(PersonPaymentDto::totalAmountCents).reversed())
+            .toList();
+    }
+
+    private static final class PersonAcc {
+        final UUID userId;
+        final String currency;
+        long total;
+        final List<GroupDebtDetailDto> groups = new ArrayList<>();
+
+        PersonAcc(UUID userId, String currency) { this.userId = userId; this.currency = currency; }
+
+        void add(Group group, long cents) {
+            total += cents;
+            groups.add(new GroupDebtDetailDto(group.getId(), group.getName(), cents));
+        }
     }
 
     private static List<DebtRepaymentDto> toDtos(List<DebtSimplificationService.DebtRepayment> debts, Map<UUID, String> names) {

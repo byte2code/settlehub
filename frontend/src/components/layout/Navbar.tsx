@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState } from 'react';
 import { Link } from 'react-router';
-import { Layers, LogOut, Moon, Server, Sun, MonitorSmartphone, UserRound } from 'lucide-react';
+import { Layers, LogOut, ShieldCheck, Moon, Server, Sun, MonitorSmartphone, UserRound } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useTheme, type ThemePreference } from '../../hooks/useTheme';
 import { Avatar } from '../ui/bits';
@@ -29,7 +29,7 @@ export function Navbar({ onSignIn }: { onSignIn: () => void }) {
           <span className="truncate text-lg font-bold tracking-tight text-fg">
             Settle<span className="text-brand-fg">Hub</span>
           </span>
-          <span className="chip hidden border-emerald-500/25 bg-emerald-500/10 text-brand-fg sm:inline-flex">3.0</span>
+          <span className="chip hidden border-emerald-500/25 bg-emerald-500/10 text-brand-fg sm:inline-flex">3.1</span>
         </Link>
 
         <nav className="flex shrink-0 items-center gap-1 sm:gap-2">
@@ -47,6 +47,11 @@ export function Navbar({ onSignIn }: { onSignIn: () => void }) {
           </button>
           {user ? (
             <>
+              {user.admin && (
+                <Link to="/admin" className="btn-ghost p-2" title="Admin portal" aria-label="Admin portal">
+                  <ShieldCheck className="h-4 w-4" />
+                </Link>
+              )}
               <NotificationBell signedIn={Boolean(user)} />
               <button
                 type="button"
@@ -54,7 +59,7 @@ export function Navbar({ onSignIn }: { onSignIn: () => void }) {
                 className="flex items-center gap-2 rounded-xl border border-line bg-surface px-2 py-1.5 text-sm hover:border-line-strong"
                 aria-label="Your profile"
               >
-                <Avatar name={user.fullName} size="sm" />
+                <Avatar name={user.fullName} size="sm" avatarId={user.avatarId} />
                 <span className="hidden max-w-32 truncate text-xs font-medium text-fg md:block">{user.fullName}</span>
                 <UserRound className="h-3.5 w-3.5 text-subtle md:hidden" />
               </button>

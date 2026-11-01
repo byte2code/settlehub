@@ -2,6 +2,12 @@ import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import type {
+  AdminGroup,
+  AdminHealth,
+  AdminOverview,
+  AdminUser,
+  Badge,
+  UserPaymentSummary,
   Activity,
   AuthResponse,
   Expense,
@@ -129,7 +135,16 @@ export const api = {
   resetPassword: (data: { email: string; otp: string; newPassword: string }) =>
     request<AuthResponse>('POST', '/auth/reset-password', data),
   me: () => request<User>('GET', '/auth/me'),
-  updateProfile: (data: { firstName?: string; lastName?: string; currencyCode?: string; upiId?: string }) =>
+  badges: () => request<Badge[]>('GET', '/auth/me/badges'),
+  updateProfile: (data: {
+    firstName?: string;
+    lastName?: string;
+    currencyCode?: string;
+    upiId?: string;
+    bio?: string;
+    avatarId?: string;
+    chimeSound?: string;
+  }) =>
     request<User>('PATCH', '/auth/me', data),
   changePassword: (data: { currentPassword: string; newPassword: string }) =>
     request<void>('POST', '/auth/me/password', data),
@@ -168,6 +183,13 @@ export const api = {
   receipt: (id: string) => request<{ dataUrl: string }>('GET', `/expenses/${id}/receipt`),
 
   // Balances & settlements
+  // Admin (server enforces ROLE_ADMIN)
+  adminOverview: () => request<AdminOverview>('GET', '/admin/overview'),
+  adminHealth: () => request<AdminHealth>('GET', '/admin/health'),
+  adminUsers: (q: string) => request<AdminUser[]>('GET', `/admin/users?q=${encodeURIComponent(q)}`),
+  adminGroups: (q: string) => request<AdminGroup[]>('GET', `/admin/groups?q=${encodeURIComponent(q)}`),
+  adminSetActive: (id: string, active: boolean) => request<AdminUser>('PATCH', `/admin/users/${id}/active`, { active }),
+  paymentSummary: () => request<UserPaymentSummary>('GET', '/balances/me/summary'),
   balances: (groupId: string) => request<GroupBalanceSummary>('GET', `/groups/${groupId}/balances`),
   settlements: (groupId: string) => request<Settlement[]>('GET', `/groups/${groupId}/settlements`),
   recordSettlement: (data: { groupId: string; payerId: string; payeeId: string; amountCents: number; note?: string }) =>
@@ -177,6 +199,12 @@ export const api = {
   // Notifications
   notifications: (limit = 30) => request<NotificationSummary>('GET', `/notifications?limit=${limit}`),
   markNotificationRead: (id: string) => request<{ success: boolean }>('PATCH', `/notifications/${id}/read`),
+  markGroupNotificationsRead: (groupId: string) =>
+    request<{ marked: number }>('POST', `/notifications/groups/${groupId}/read`),
+  pushConfig: () => request<{ webPushPublicKey: string | null; fcmEnabled: boolean }>('GET', '/push/config'),
+  pushSubscribe: (data: { deviceType: 'WEB' | 'ANDROID'; deviceToken: string; p256dhKey?: string; authKey?: string }) =>
+    request<{ success: boolean }>('POST', '/push/subscriptions', data),
+  pushUnsubscribe: (token: string) => request<{ success: boolean }>('DELETE', `/push/subscriptions?token=${encodeURIComponent(token)}`),
   markAllNotificationsRead: () => request<{ success: boolean }>('POST', '/notifications/read-all'),
 
   // Exports

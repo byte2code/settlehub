@@ -50,4 +50,21 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
 
     @Query("SELECT COUNT(e) > 0 FROM Expense e WHERE e.group.id = :groupId AND e.deletedAt IS NULL AND e.isPayment = false")
     boolean existsActiveByGroupId(@Param("groupId") UUID groupId);
+
+    /** Rows of [groupId, createdAt] for active expenses the user took part in as a splitter. */
+    @Query("""
+        SELECT DISTINCT e.group.id, e.createdAt FROM Expense e JOIN e.splits sp
+        WHERE sp.user.id = :userId AND e.deletedAt IS NULL AND e.isPayment = false
+        """)
+    List<Object[]> splitExpenseTimes(@Param("userId") UUID userId);
+
+    /** Rows of [currencyCode, sum(costCents)] over active expenses, in each group's currency. */
+    @Query("""
+        SELECT e.group.currencyCode, SUM(e.costCents) FROM Expense e
+        WHERE e.deletedAt IS NULL AND e.isPayment = false GROUP BY e.group.currencyCode
+        """)
+    List<Object[]> sumVolumeByCurrency();
+
+    @Query("SELECT COUNT(e) FROM Expense e WHERE e.deletedAt IS NULL AND e.isPayment = false")
+    long countActive();
 }

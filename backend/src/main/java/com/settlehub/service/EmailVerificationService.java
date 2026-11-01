@@ -35,6 +35,7 @@ public class EmailVerificationService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final HttpClient httpClient;
+    private final EmailQuotaTracker quotaTracker;
 
     private final boolean requireEmailVerification;
     private final Set<String> testDomains;
@@ -49,6 +50,7 @@ public class EmailVerificationService {
             EmailVerificationRepository verificationRepository,
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
+            EmailQuotaTracker quotaTracker,
             @Value("${app.auth.require-email-verification:true}") boolean requireEmailVerification,
             @Value("${app.auth.test-domains:}") String testDomainsStr,
             @Value("${app.auth.master-otp:}") String masterOtp,
@@ -60,6 +62,7 @@ public class EmailVerificationService {
         this.verificationRepository = verificationRepository;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.quotaTracker = quotaTracker;
         this.requireEmailVerification = requireEmailVerification;
         this.testDomains = parseSet(testDomainsStr);
         this.bypassEmails = parseSet(bypassEmailsStr);
@@ -342,6 +345,7 @@ public class EmailVerificationService {
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                quotaTracker.recordSent();
                 log.info("Sent verification code to '{}' via Brevo: HTTP {}", recipientEmail, response.statusCode());
                 return true;
             } else {

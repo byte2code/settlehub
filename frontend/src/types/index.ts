@@ -6,6 +6,10 @@ export interface User {
   fullName: string;
   currencyCode: string;
   upiId?: string | null;
+  bio?: string | null;
+  avatarId?: string | null;
+  chimeSound?: string | null;
+  admin?: boolean;
 }
 
 export type GroupRole = 'ADMIN' | 'MEMBER';
@@ -184,4 +188,73 @@ export interface AppNotification {
 export interface NotificationSummary {
   notifications: AppNotification[];
   unreadCount: number;
+}
+
+export interface GroupDebtDetail {
+  groupId: string;
+  groupName: string;
+  amountCents: number;
+}
+
+export interface PersonPayment {
+  userId: string;
+  userName: string;
+  upiId: string | null;
+  currencyCode: string;
+  totalAmountCents: number;
+  groupBreakdown: GroupDebtDetail[];
+}
+
+export interface UserPaymentSummary {
+  totalOweByCurrency: Record<string, number>;
+  totalReceivableByCurrency: Record<string, number>;
+  peopleYouOwe: PersonPayment[];
+  peopleWhoOweYou: PersonPayment[];
+}
+
+export interface Badge {
+  id: string;
+  emoji: string;
+  name: string;
+  description: string;
+  earned: boolean;
+}
+
+export interface AdminOverview {
+  totalUsers: number;
+  activeGroups: number;
+  totalGroups: number;
+  expenseCount: number;
+  settlementCount: number;
+  expenseVolumeByCurrency: Record<string, number>;
+  settledVolumeByCurrency: Record<string, number>;
+  settlementRatioByCurrency: Record<string, number>;
+}
+
+export interface AdminHealth {
+  emailsSentToday: number;
+  emailDailyLimit: number;
+  dbLatencyMs: number;
+  database: string;
+  tables: { table: string; sizeBytes: number; rows: number }[];
+  uptimeSeconds: number;
+}
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  name: string;
+  createdAt: string;
+  active: boolean;
+  admin: boolean;
+  groupCount: number;
+}
+
+export interface AdminGroup {
+  id: string;
+  name: string;
+  currencyCode: string;
+  archived: boolean;
+  createdAt: string;
+  memberCount: number;
 }

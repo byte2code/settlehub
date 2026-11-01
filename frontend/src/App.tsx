@@ -12,6 +12,7 @@ import { Landing } from './pages/Landing';
 
 const Dashboard = lazy(() => import('./pages/Dashboard').then((m) => ({ default: m.Dashboard })));
 const GroupPage = lazy(() => import('./pages/GroupPage').then((m) => ({ default: m.GroupPage })));
+const AdminPage = lazy(() => import('./pages/AdminPage').then((m) => ({ default: m.AdminPage })));
 const JoinPage = lazy(() => import('./pages/JoinPage').then((m) => ({ default: m.JoinPage })));
 const AuthModal = lazy(() => import('./components/modals/AuthModal'));
 
@@ -44,6 +45,7 @@ export default function App() {
             <Routes>
               <Route path="/" element={user ? <Dashboard /> : <Landing onGetStarted={() => openAuth(undefined, true)} />} />
               <Route path="/groups/:groupId" element={user ? <GroupPage /> : <Navigate to="/" replace />} />
+              <Route path="/admin" element={user?.admin ? <AdminPage /> : <Navigate to="/" replace />} />
               <Route path="/join/:code" element={<JoinPage onSignIn={openAuth} />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
@@ -51,7 +53,7 @@ export default function App() {
         )}
       </main>
       <footer className="border-t border-line py-6 text-center text-xs text-subtle">
-        SettleHub 3.0 · open source · runs on free infrastructure
+        SettleHub 3.1 · open source · runs on free infrastructure
       </footer>
       <Suspense fallback={null}>{auth && !user && <AuthModal open context={auth.context} initialMode={auth.signUp ? 'register' : 'login'} onClose={() => setAuth(null)} />}</Suspense>
       <UpdatePrompt />

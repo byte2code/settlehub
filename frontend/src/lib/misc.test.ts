@@ -15,6 +15,10 @@ describe('buildUpiLink', () => {
     const link = buildUpiLink({ upiId: 'alice@okhdfc', payeeName: 'Alice D', amountCents: 123450, note: 'Goa trip' });
     expect(link).toBe('upi://pay?pa=alice%40okhdfc&pn=Alice+D&am=1234.50&cu=INR&tn=Goa+trip');
   });
+
+  it('omits the amount when none is given so the payer can type it', () => {
+    expect(buildUpiLink({ upiId: 'alice@okhdfc', payeeName: 'Alice', amountCents: 0 })).toBe('upi://pay?pa=alice%40okhdfc&pn=Alice&cu=INR');
+  });
 });
 
 describe('dates', () => {

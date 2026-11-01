@@ -33,4 +33,15 @@ public interface SettlementRepository extends JpaRepository<Settlement, UUID> {
     @Modifying
     @Query("DELETE FROM Settlement s WHERE s.group.id = :groupId")
     void deleteByGroupId(@Param("groupId") UUID groupId);
+
+    /** Rows of [groupId, createdAt] for settlements the user paid. */
+    @Query("SELECT s.group.id, s.createdAt FROM Settlement s WHERE s.payer.id = :userId")
+    List<Object[]> payerSettlementTimes(@Param("userId") UUID userId);
+
+    @Query("SELECT COUNT(s) FROM Settlement s WHERE s.group.id IN :groupIds AND (s.payer.id = :userId OR s.payee.id = :userId)")
+    long countInvolving(@Param("userId") UUID userId, @Param("groupIds") Collection<UUID> groupIds);
+
+    /** Rows of [currencyCode, sum(amountCents)]. */
+    @Query("SELECT s.currencyCode, SUM(s.amountCents) FROM Settlement s GROUP BY s.currencyCode")
+    List<Object[]> sumVolumeByCurrency();
 }

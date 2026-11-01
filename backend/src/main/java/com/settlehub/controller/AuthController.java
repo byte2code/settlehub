@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -17,9 +18,12 @@ public class AuthController {
 
     private final AuthService authService;
     private final com.settlehub.service.EmailVerificationService emailVerificationService;
+    private final com.settlehub.service.BadgeService badgeService;
 
-    public AuthController(AuthService authService, com.settlehub.service.EmailVerificationService emailVerificationService) {
+    public AuthController(AuthService authService, com.settlehub.service.EmailVerificationService emailVerificationService,
+                          com.settlehub.service.BadgeService badgeService) {
         this.authService = authService;
+        this.badgeService = badgeService;
         this.emailVerificationService = emailVerificationService;
     }
 
@@ -47,6 +51,11 @@ public class AuthController {
     @GetMapping("/me")
     public UserDto getCurrentUser(@AuthenticationPrincipal UserPrincipal principal) {
         return authService.getCurrentUser(principal.getId());
+    }
+
+    @GetMapping("/me/badges")
+    public List<BadgeDto> getBadges(@AuthenticationPrincipal UserPrincipal principal) {
+        return badgeService.badgesFor(principal.getId());
     }
 
     @PatchMapping("/me")

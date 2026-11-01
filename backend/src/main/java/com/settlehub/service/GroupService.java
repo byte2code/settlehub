@@ -274,6 +274,7 @@ public class GroupService {
             groupMemberRepository.save(new GroupMember(group, user, ROLE_MEMBER));
             activityService.record(group, user, Activity.Type.MEMBER_JOINED, user.getFirstName() + " joined via invite link", null);
             events.publishGroupEvent(group.getId(), "MEMBER_JOINED", currentUserId, currentUserId);
+            events.publishPulse("JOIN");
         }
         return getGroupDetails(group.getId(), currentUserId);
     }

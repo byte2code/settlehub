@@ -72,11 +72,21 @@ public class WebSocketAuthInterceptor implements ChannelInterceptor {
                 return message;
             }
 
+            if ("/topic/admin/pulse".equals(destination)) {
+                if (!isAdmin(accessor.getUser())) throw new MessageDeliveryException("Forbidden subscription");
+                return message;
+            }
+
             throw new MessageDeliveryException("Forbidden subscription");
         } else if (command == StompCommand.SEND) {
             throw new MessageDeliveryException("Publishing is not supported");
         }
         return message;
+    }
+
+    private static boolean isAdmin(Principal user) {
+        return user instanceof UsernamePasswordAuthenticationToken auth
+            && auth.getAuthorities().stream().anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
     }
 
     private static UUID currentUserId(Principal user) {

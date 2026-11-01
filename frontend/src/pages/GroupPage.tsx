@@ -1,11 +1,11 @@
-import { lazy, Suspense, useCallback, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Activity, Archive, ArchiveRestore, ArrowLeft, BarChart3, CheckCircle2, History, Plus, Radio, Receipt, Settings, Share2, UserPlus } from 'lucide-react';
 import { api } from '../lib/api';
 import { errorMessage } from '../lib/errors';
 import { formatMoney } from '../lib/money';
-import { keys, useBalances, useExpenses, useGroup, useInvalidateGroup, useSettlements } from '../hooks/queries';
+import { keys, useBalances, useExpenses, useGroup, useInvalidateGroup, useMarkGroupNotificationsRead, useSettlements } from '../hooks/queries';
 import { useCurrentUser } from '../hooks/useAuth';
 import { useGroupSocket, type GroupSocketEvent } from '../hooks/useGroupSocket';
 import type { DebtRepayment, Expense, Settlement } from '../types';
@@ -45,6 +45,7 @@ export function GroupPage() {
   const confirm = useConfirm();
   const queryClient = useQueryClient();
   const invalidate = useInvalidateGroup();
+  const markGroupRead = useMarkGroupNotificationsRead();
   const [params, setParams] = useSearchParams();
   const tab = (params.get('tab') as Tab) || 'expenses';
   const [modal, setModal] = useState<ModalState>(null);
@@ -68,6 +69,10 @@ export function GroupPage() {
     },
     [groupId, user.id, queryClient, invalidate, navigate, toast],
   );
+  useEffect(() => {
+    if (groupId) markGroupRead(groupId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupId]);
   const live = useGroupSocket(group ? groupId : undefined, onSocketEvent);
 
   const setTab = (next: Tab) => setParams(next === 'expenses' ? {} : { tab: next }, { replace: true });

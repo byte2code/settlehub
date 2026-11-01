@@ -72,5 +72,25 @@ class NotificationIntegrationTest extends ApiTestSupport {
         JsonNode aliceFinal = json(perform(get("/api/v1/notifications"), alice, null));
         assertEquals(0, aliceFinal.get("unreadCount").asInt());
     }
-}
 
+    @Test
+    @DisplayName("Opening a group marks only that group's notifications as read, only for the caller")
+    void markGroupRead() throws Exception {
+        TestUser alice = register("Alice");
+        TestUser bob = register("Bob");
+        UUID goa = createGroup(alice, "Goa", List.of(bob.email()));
+        UUID flat = createGroup(alice, "Flat", List.of(bob.email()));
+        addEqualExpense(alice, goa, 1000, alice, bob);
+        addEqualExpense(alice, flat, 2000, alice, bob);
+        assertEquals(2, json(perform(get("/api/v1/notifications"), bob, null)).get("unreadCount").asInt());
+
+        // Alice marking Goa read must not touch Bob's notifications
+        perform(post("/api/v1/notifications/groups/" + goa + "/read"), alice, null)
+                .andExpect(status().isOk()).andExpect(jsonPath("$.marked").value(0));
+        assertEquals(2, json(perform(get("/api/v1/notifications"), bob, null)).get("unreadCount").asInt());
+
+        perform(post("/api/v1/notifications/groups/" + goa + "/read"), bob, null)
+                .andExpect(status().isOk()).andExpect(jsonPath("$.marked").value(1));
+        assertEquals(1, json(perform(get("/api/v1/notifications"), bob, null)).get("unreadCount").asInt());
+    }
+}

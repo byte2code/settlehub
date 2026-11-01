@@ -58,6 +58,26 @@ public class WebSocketEventPublisher {
         }
     }
 
+    /** Anonymous platform activity for the admin portal: carries only the kind of event, never who or what. */
+    public void publishPulse(String kind) {
+        Map<String, Object> message = Map.of("kind", kind, "at", Instant.now().toString());
+        Runnable send = () -> {
+            try {
+                messagingTemplate.convertAndSend("/topic/admin/pulse", (Object) message);
+            } catch (Exception e) {
+                log.warn("Failed to broadcast admin pulse: {}", e.getMessage());
+            }
+        };
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() { send.run(); }
+            });
+        } else {
+            send.run();
+        }
+    }
+
     public void publishUserNotification(UUID userId, Object notificationPayload) {
         if (userId == null) return;
         Runnable send = () -> {

@@ -1,3 +1,4 @@
+import { avatarEmoji } from '../../lib/avatars';
 import type { ReactNode } from 'react';
 import { formatMoney } from '../../lib/money';
 
@@ -28,7 +29,7 @@ const AVATAR_TONES = [
   'bg-teal-500/15 text-teal-700 dark:text-teal-300',
 ];
 
-export function Avatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' }) {
+export function Avatar({ name, size = 'md', avatarId }: { name: string; size?: 'sm' | 'md'; avatarId?: string | null }) {
   const initials = name
     .split(/\s+/)
     .filter(Boolean)
@@ -39,6 +40,14 @@ export function Avatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md'
   for (const ch of name) hash = (hash * 31 + ch.charCodeAt(0)) | 0;
   const tone = AVATAR_TONES[Math.abs(hash) % AVATAR_TONES.length];
   const dims = size === 'sm' ? 'h-6 w-6 text-[10px]' : 'h-8 w-8 text-xs';
+  const emoji = avatarEmoji(avatarId);
+  if (emoji) {
+    return (
+      <span aria-hidden className={`inline-flex shrink-0 items-center justify-center rounded-full bg-surface-3 ${size === 'sm' ? 'h-6 w-6 text-sm' : 'h-8 w-8 text-lg'}`}>
+        {emoji}
+      </span>
+    );
+  }
   return (
     <span aria-hidden className={`inline-flex shrink-0 items-center justify-center rounded-full font-bold ${dims} ${tone}`}>
       {initials || '?'}

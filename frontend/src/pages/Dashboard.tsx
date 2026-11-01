@@ -12,6 +12,7 @@ import { GroupTypeIcon } from '../components/ui/GroupTypeIcon';
 
 const CreateGroupModal = lazy(() => import('../components/modals/CreateGroupModal'));
 const JoinGroupModal = lazy(() => import('../components/modals/JoinGroupModal'));
+const PaymentDetailDrawer = lazy(() => import('../components/modals/PaymentDetailDrawer'));
 
 function Totals({ totals, tone }: { totals: Record<string, number>; tone: 'pos' | 'neg' }) {
   const entries = Object.entries(totals).filter(([, c]) => c !== 0);
@@ -32,6 +33,7 @@ export function Dashboard() {
   const { data: groups = [], isLoading, error, refetch, isFetching } = useGroups();
   const [tab, setTab] = useState<'active' | 'archived'>('active');
   const [modal, setModal] = useState<'create' | 'join' | null>(null);
+  const [drawer, setDrawer] = useState<'owe' | 'owed' | null>(null);
 
   // Balances in different currencies are never added together
   const { owed, owe } = useMemo(() => {
@@ -55,14 +57,14 @@ export function Dashboard() {
           </p>
         </div>
         <div className="relative z-10 grid grid-cols-2 gap-3 md:min-w-80">
-          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+          <button type="button" onClick={() => setDrawer('owed')} aria-label="See who owes you" className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-left transition-colors hover:border-emerald-500/50">
             <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-pos"><TrendingUp className="h-4 w-4" /> You are owed</div>
             <Totals totals={owed} tone="pos" />
-          </div>
-          <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4">
+          </button>
+          <button type="button" onClick={() => setDrawer('owe')} aria-label="See who you owe" className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4 text-left transition-colors hover:border-rose-500/50">
             <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-neg"><TrendingDown className="h-4 w-4" /> You owe</div>
             <Totals totals={owe} tone="neg" />
-          </div>
+          </button>
         </div>
         <div className="pointer-events-none absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-emerald-500/10 blur-3xl" />
       </section>
@@ -108,6 +110,7 @@ export function Dashboard() {
       <Suspense fallback={null}>
         {modal === 'create' && <CreateGroupModal open onClose={() => setModal(null)} />}
         {modal === 'join' && <JoinGroupModal open onClose={() => setModal(null)} />}
+        {drawer && <PaymentDetailDrawer key={drawer} open initialTab={drawer} onClose={() => setDrawer(null)} />}
       </Suspense>
     </div>
   );

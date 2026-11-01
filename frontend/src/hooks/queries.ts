@@ -11,7 +11,11 @@ export const keys = {
   activity: (id: string) => ['group', id, 'activity'] as const,
   receipt: (expenseId: string) => ['receipt', expenseId] as const,
   notifications: ['notifications'] as const,
+  paymentSummary: ['paymentSummary'] as const,
 };
+
+export const usePaymentSummary = (enabled = true) =>
+  useQuery({ queryKey: keys.paymentSummary, queryFn: api.paymentSummary, enabled });
 
 export const useGroups = () => useQuery({ queryKey: keys.groups, queryFn: api.groups });
 
@@ -89,6 +93,23 @@ export function useMarkAllNotificationsRead() {
       }
     },
   });
+}
+
+/** Fire-and-forget: opening a group clears its unread notifications (badge clears optimistically). */
+export function useMarkGroupNotificationsRead() {
+  const queryClient = useQueryClient();
+  return (groupId: string) => {
+    queryClient.setQueryData<NotificationSummary>(keys.notifications, (old) => {
+      if (!old) return old;
+      const cleared = old.notifications.filter((n) => n.groupId === groupId && !n.read).length;
+      if (cleared === 0) return old;
+      return {
+        notifications: old.notifications.map((n) => (n.groupId === groupId ? { ...n, read: true } : n)),
+        unreadCount: Math.max(0, old.unreadCount - cleared),
+      };
+    });
+    api.markGroupNotificationsRead(groupId).catch(() => queryClient.invalidateQueries({ queryKey: keys.notifications }));
+  };
 }
 
 export const useReceipt = (expenseId: string | null) =>

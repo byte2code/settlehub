@@ -22,13 +22,22 @@ public class NotificationService {
     private final UserNotificationRepository notificationRepository;
     private final GroupMemberRepository groupMemberRepository;
     private final WebSocketEventPublisher events;
+    private final PushNotificationService pushService;
 
     public NotificationService(UserNotificationRepository notificationRepository,
                                GroupMemberRepository groupMemberRepository,
-                               WebSocketEventPublisher events) {
+                               WebSocketEventPublisher events,
+                               PushNotificationService pushService) {
         this.notificationRepository = notificationRepository;
         this.groupMemberRepository = groupMemberRepository;
         this.events = events;
+        this.pushService = pushService;
+    }
+
+    /** Live WebSocket update plus a background push for devices that are not connected. */
+    private void deliver(UUID userId, UserNotification saved) {
+        events.publishUserNotification(userId, NotificationDto.fromEntity(saved));
+        pushService.sendToUser(userId, saved.getTitle(), saved.getMessage(), saved.getGroupId());
     }
 
     @Transactional(readOnly = true)
@@ -40,6 +49,12 @@ public class NotificationService {
                 .toList();
         long unread = notificationRepository.countUnreadByUserId(userId);
         return new NotificationSummaryDto(list, unread);
+    }
+
+    /** Marks only the caller's own unread notifications for a group, so no membership check is needed. */
+    @Transactional
+    public int markGroupAsRead(UUID groupId, UUID userId) {
+        return notificationRepository.markGroupReadByUserId(userId, groupId);
     }
 
     @Transactional
@@ -59,6 +74,7 @@ public class NotificationService {
 
     @Transactional
     public void notifyExpenseCreated(Expense expense, User actor) {
+        events.publishPulse("EXPENSE");
         Group group = expense.getGroup();
         String currency = group.getCurrencyCode();
         List<GroupMember> members = groupMemberRepository.findAllByGroupId(group.getId());
@@ -109,7 +125,7 @@ public class NotificationService {
                     message
             );
             UserNotification saved = notificationRepository.save(notification);
-            events.publishUserNotification(memberUserId, NotificationDto.fromEntity(saved));
+            deliver(memberUserId, saved);
         }
     }
 
@@ -137,7 +153,7 @@ public class NotificationService {
                     message
             );
             UserNotification saved = notificationRepository.save(notification);
-            events.publishUserNotification(memberUserId, NotificationDto.fromEntity(saved));
+            deliver(memberUserId, saved);
         }
     }
 
@@ -164,12 +180,13 @@ public class NotificationService {
                     message
             );
             UserNotification saved = notificationRepository.save(notification);
-            events.publishUserNotification(memberUserId, NotificationDto.fromEntity(saved));
+            deliver(memberUserId, saved);
         }
     }
 
     @Transactional
     public void notifySettlementRecorded(Settlement settlement, User actor) {
+        events.publishPulse("SETTLEMENT");
         Group group = settlement.getGroup();
         String currency = settlement.getCurrencyCode();
         List<GroupMember> members = groupMemberRepository.findAllByGroupId(group.getId());
@@ -208,7 +225,7 @@ public class NotificationService {
                     message
             );
             UserNotification saved = notificationRepository.save(notification);
-            events.publishUserNotification(memberUserId, NotificationDto.fromEntity(saved));
+            deliver(memberUserId, saved);
         }
     }
 
@@ -235,7 +252,7 @@ public class NotificationService {
                     message
             );
             UserNotification saved = notificationRepository.save(notification);
-            events.publishUserNotification(memberUserId, NotificationDto.fromEntity(saved));
+            deliver(memberUserId, saved);
         }
     }
 }

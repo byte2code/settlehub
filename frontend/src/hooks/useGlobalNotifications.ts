@@ -6,6 +6,7 @@ import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { getBackendOrigin, getToken } from '../lib/api';
 import { keys } from './queries';
+import { playChime } from '../lib/chime';
 import type { AppNotification, NotificationSummary, User } from '../types';
 
 export const IN_APP_NOTIFICATION_EVENT = 'settlehub:in-app-notification';
@@ -103,6 +104,10 @@ export function useGlobalNotifications(user: User | null) {
               void queryClient.invalidateQueries({ queryKey: keys.groups });
             }
 
+            if (notif.type === 'SETTLEMENT_RECORDED' && notif.title.includes('Payment Received')) {
+              playChime(user.chimeSound ?? 'cha-ching');
+            }
+
             // In-app floating toast banner
             window.dispatchEvent(new CustomEvent(IN_APP_NOTIFICATION_EVENT, { detail: notif }));
 
@@ -147,6 +152,6 @@ export function useGlobalNotifications(user: User | null) {
       void client.deactivate();
       clientRef.current = null;
     };
-  }, [user?.id, queryClient]);
+  }, [user?.id, user?.chimeSound, queryClient]);
 }
 

@@ -27,15 +27,18 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider tokenProvider;
     private final EmailVerificationService emailVerificationService;
+    private final AdminEmailPolicy adminEmailPolicy;
 
     public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder,
                        AuthenticationManager authenticationManager, JwtTokenProvider tokenProvider,
-                       EmailVerificationService emailVerificationService) {
+                       EmailVerificationService emailVerificationService,
+                       AdminEmailPolicy adminEmailPolicy) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.tokenProvider = tokenProvider;
         this.emailVerificationService = emailVerificationService;
+        this.adminEmailPolicy = adminEmailPolicy;
     }
 
     /**
@@ -68,16 +71,24 @@ public class AuthService {
             return existing;
         }).orElseGet(() -> new User(email, passwordEncoder.encode(request.password()), firstName, lastName, currency));
 
+        user.setAdmin(adminEmailPolicy.isAdmin(email));
         User saved = userRepository.save(user);
         return new AuthResponse(tokenProvider.generateToken(UserPrincipal.create(saved)), UserDto.fromEntity(saved));
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public AuthResponse login(LoginRequest request) {
         Authentication authentication = authenticationManager.authenticate(
             new UsernamePasswordAuthenticationToken(request.email().trim().toLowerCase(Locale.ROOT), request.password()));
         UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
-        return new AuthResponse(tokenProvider.generateToken(principal), getCurrentUser(principal.getId()));
+        User user = requireUser(principal.getId());
+        // APP_ADMIN_EMAILS is the single source of truth, so removing an email revokes admin at next sign-in
+        boolean admin = adminEmailPolicy.isAdmin(user.getEmail());
+        if (user.isAdmin() != admin) {
+            user.setAdmin(admin);
+            user = userRepository.save(user);
+        }
+        return new AuthResponse(tokenProvider.generateToken(UserPrincipal.create(user)), UserDto.fromEntity(user));
     }
 
     @Transactional(readOnly = true)
@@ -100,12 +111,21 @@ public class AuthService {
         if (request.upiId() != null) {
             user.setUpiId(request.upiId().isBlank() ? null : request.upiId().trim());
         }
+        if (request.bio() != null) {
+            user.setBio(request.bio().isBlank() ? null : request.bio().trim());
+        }
+        if (request.avatarId() != null) {
+            user.setAvatarId(request.avatarId().isBlank() ? null : request.avatarId());
+        }
+        if (request.chimeSound() != null) {
+            user.setChimeSound(request.chimeSound().isBlank() ? null : request.chimeSound());
+        }
         return UserDto.fromEntity(userRepository.save(user));
     }
 
     @Transactional
     public UserDto updateUserCurrency(UUID userId, String currencyCode) {
-        return updateProfile(userId, new UpdateProfileRequest(null, null, currencyCode, null));
+        return updateProfile(userId, new UpdateProfileRequest(null, null, currencyCode, null, null, null, null));
     }
 
     @Transactional
@@ -131,6 +151,7 @@ public class AuthService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new NotFoundException("User not found"));
         user.setPassword(passwordEncoder.encode(request.newPassword()));
+        user.setAdmin(adminEmailPolicy.isAdmin(email));
         User saved = userRepository.save(user);
 
         return new AuthResponse(tokenProvider.generateToken(UserPrincipal.create(saved)), UserDto.fromEntity(saved));
