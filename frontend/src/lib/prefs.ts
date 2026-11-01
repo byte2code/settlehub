@@ -7,9 +7,11 @@ export interface Prefs {
   /** Playful copy and celebrations. Off gives a plain, quiet app. */
   fun: boolean;
   haptics: boolean;
+  /** Offer to read receipts you attach (on this device, nothing is uploaded). */
+  scanReceipts: boolean;
 }
 
-const DEFAULTS: Prefs = { fun: true, haptics: true };
+const DEFAULTS: Prefs = { fun: true, haptics: true, scanReceipts: true };
 const listeners = new Set<() => void>();
 let cache: Prefs | null = null;
 

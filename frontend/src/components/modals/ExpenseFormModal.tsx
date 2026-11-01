@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { AlertCircle, ArrowRightLeft, Camera, CheckCircle, Coins, Mic, MicOff, Percent, Receipt, Sparkles, Trash2, Users } from 'lucide-react';
 import { api } from '../../lib/api';
 import { CATEGORIES } from '../../lib/categories';
@@ -13,6 +13,7 @@ import { copy } from '../../lib/copy';
 import { haptic } from '../../lib/haptics';
 import { useSpeech, type SpeechError } from '../../hooks/useSpeech';
 import { enqueue, isOfflineError } from '../../lib/outbox';
+import { ReceiptScanPrompt } from './ReceiptScanPrompt';
 import { validateSplit } from '../../lib/split';
 import { useInvalidateGroup } from '../../hooks/queries';
 import { useCurrentUser } from '../../hooks/useAuth';
@@ -170,10 +171,14 @@ export default function ExpenseFormModal({ group, expense, initialPayerId, onClo
     }
   };
 
+  const receiptInput = useRef<HTMLInputElement>(null);
+  const [scanFile, setScanFile] = useState<Blob | null>(null);
+
   const onReceiptFile = async (file?: File) => {
     if (!file) return;
     try {
       setReceipt({ kind: 'new', dataUrl: await compressImage(file) });
+      setScanFile(file);
     } catch (err) {
       toast.error(errorMessage(err));
     }
@@ -373,6 +378,7 @@ export default function ExpenseFormModal({ group, expense, initialPayerId, onClo
               capture="environment"
               aria-label="Receipt photo"
               className="sr-only"
+              ref={receiptInput}
               onChange={(e) => void onReceiptFile(e.target.files?.[0])}
             />
           </label>
@@ -382,6 +388,24 @@ export default function ExpenseFormModal({ group, expense, initialPayerId, onClo
             </button>
           )}
         </div>
+
+        {!editing && (
+          <ReceiptScanPrompt
+            file={receipt.kind === 'new' ? scanFile : null}
+            currency={currency}
+            current={{ description: form.description, amount: foreign ? form.originalAmount : form.amount }}
+            onRetake={() => receiptInput.current?.click()}
+            onApply={(f) =>
+              setForm((prev) => ({
+                ...prev,
+                description: f.description ?? prev.description,
+                amount: f.amountCents !== undefined ? centsToInput(f.amountCents, currency) : prev.amount,
+                inputCurrency: f.amountCents !== undefined ? currency : prev.inputCurrency,
+                date: f.date ?? prev.date,
+              }))
+            }
+          />
+        )}
 
         <div>
             <span className="label">Category</span>

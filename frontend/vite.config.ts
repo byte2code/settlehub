@@ -31,10 +31,15 @@ export default defineConfig({
       workbox: {
         importScripts: ['push-sw.js'],
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // The OCR engine is large and rarely used: fetched on first scan, then cached
+        globIgnores: ['ocr/**'],
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//, /^\/ws/],
         // API data is never cached by the service worker (it is private and changes constantly)
-        runtimeCaching: [],
+        runtimeCaching: [
+          { urlPattern: ({ url }) => url.pathname.startsWith('/ocr/'), handler: 'CacheFirst', options: { cacheName: 'ocr-assets', expiration: { maxEntries: 8 } } },
+        ],
       },
     }),
   ],
